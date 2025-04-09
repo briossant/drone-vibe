@@ -6,11 +6,10 @@ class InputManager {
         this.engine = engine;
         this.keys = {}; // Track pressed keys
         this.controls = { // Normalized control values
-            roll: 0,     // -1 to 1 (A/D or Left/Right Arrow)
-            pitch: 0,    // -1 to 1 (W/S or Up/Down Arrow)
-            yaw: 0,      // -1 to 1 (Left/Right Arrow or custom)
-            thrust: 0,   // 0 to 1 (Shift/Ctrl or custom)
-            // Add others like arming, mode switch etc. later
+            roll: 0,     // -1 to 1 (A/D or Left Arrow/Right Arrow)
+            pitch: 0,    // -1 to 1 (W/S or Up Arrow/Down Arrow)
+            yaw: 0,      // -1 to 1 (Q/E - example)
+            thrust: 0,   // 0 to 1 (Shift/Control)
         };
         this.gamepads = {}; // Store connected gamepad states
 
@@ -30,7 +29,7 @@ class InputManager {
         window.addEventListener('gamepadconnected', this._boundGamepadConnected);
         window.addEventListener('gamepaddisconnected', this._boundGamepadDisconnected);
 
-        this.scanGamepads(); // Check for already connected gamepads
+        this.scanGamepads();
 
         if (Config.DEBUG_MODE) {
             console.log('InputManager: Event listeners added.');
@@ -38,53 +37,63 @@ class InputManager {
     }
 
     update() {
-        this.pollGamepads(); // Update gamepad state each frame
-        this.updateKeyboardControls(); // Update control values based on key states
-        // Combine or prioritize gamepad/keyboard input here if needed
+        this.pollGamepads();
+        this.updateKeyboardControls();
+        // Future: Prioritize or combine gamepad/keyboard inputs
     }
 
     updateKeyboardControls() {
-        // Example Mapping (Adjust keys and axes as needed)
         let targetRoll = 0;
         let targetPitch = 0;
         let targetYaw = 0;
-        let targetThrust = this.controls.thrust; // Keep previous thrust if no key pressed
+        // Start with previous thrust, modify based on keys
+        let currentThrust = this.controls.thrust;
 
-        // Roll (A/D)
+        // --- Mapping (Adjust keys as needed) ---
+        // Roll (A/D or Arrows)
         if (this.keys['a'] || this.keys['A'] || this.keys['ArrowLeft']) targetRoll = -1;
         if (this.keys['d'] || this.keys['D'] || this.keys['ArrowRight']) targetRoll = 1;
 
-        // Pitch (W/S)
-        if (this.keys['w'] || this.keys['W'] || this.keys['ArrowUp']) targetPitch = 1; // Usually forward/up tilt
-        if (this.keys['s'] || this.keys['S'] || this.keys['ArrowDown']) targetPitch = -1; // Usually backward/down tilt
+        // Pitch (W/S or Arrows)
+        // IMPORTANT: Typically 'W'/'ArrowUp' pitches the drone *forward*, which requires a positive pitch input
+        // pitching the nose *down* (negative torque around drone's X-axis).
+        // Let's keep pitch input positive for W/Up and negative for S/Down. The FC logic will apply the correct torque direction.
+        if (this.keys['w'] || this.keys['W'] || this.keys['ArrowUp']) targetPitch = 1;
+        if (this.keys['s'] || this.keys['S'] || this.keys['ArrowDown']) targetPitch = -1;
 
-        // Yaw (Q/E - example, arrows might conflict with roll/pitch)
-        // if (this.keys['q'] || this.keys['Q']) targetYaw = -1;
-        // if (this.keys['e'] || this.keys['E']) targetYaw = 1;
+        // Yaw (Q/E - example)
+        if (this.keys['q'] || this.keys['Q']) targetYaw = -1; // Rotate left
+        if (this.keys['e'] || this.keys['E']) targetYaw = 1;  // Rotate right
 
-        // Thrust (Shift/Space - example)
-        if (this.keys['Shift']) targetThrust += 0.02; // Increase thrust
-        if (this.keys['Control']) targetThrust -= 0.02; // Decrease thrust
-        if (this.keys[' ']) targetThrust = 0; // Cut thrust (optional)
+        // Thrust (Shift/Control)
+        const thrustIncrement = 0.03; // How fast thrust changes
+        if (this.keys['Shift']) currentThrust += thrustIncrement;
+        if (this.keys['Control']) currentThrust -= thrustIncrement;
+        if (this.keys[' ']) currentThrust = 0; // Spacebar cuts thrust
 
         // Clamp thrust
-        targetThrust = Math.max(0, Math.min(1, targetThrust));
+        currentThrust = Math.max(0, Math.min(1, currentThrust));
 
-        // Apply sensitivity (optional, can be done in Drone FC)
+        // --- Update Controls State ---
+        // Apply sensitivity directly to the directional controls
         this.controls.roll = targetRoll * Config.KEYBOARD_SENSITIVITY.roll;
         this.controls.pitch = targetPitch * Config.KEYBOARD_SENSITIVITY.pitch;
         this.controls.yaw = targetYaw * Config.KEYBOARD_SENSITIVITY.yaw;
-        this.controls.thrust = targetThrust; // Thrust usually not scaled by sensitivity here
+        // Thrust is usually not scaled by sensitivity here, it's a direct level 0-1
+        this.controls.thrust = currentThrust;
 
-        // Add deadzone application if needed later
+        // Add deadzone logic here if needed in the future
     }
 
     handleKeyDown(event) {
         this.keys[event.key] = true;
-        // Prevent browser default actions for keys used by the sim (e.g., spacebar scrolling)
-        // if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
-        //     event.preventDefault();
-        // }
+
+        // --- Prevent browser default actions for simulation keys ---
+        const simKeys = ['w', 's', 'a', 'd', 'q', 'e', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift', 'Control', ' ', 'Enter', 'r', 'c'];
+        if (simKeys.includes(event.key) || simKeys.includes(event.key.toUpperCase())) {
+            // Check both cases for letters
+            event.preventDefault();
+        }
     }
 
     handleKeyUp(event) {

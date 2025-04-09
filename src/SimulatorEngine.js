@@ -127,37 +127,59 @@ class SimulatorEngine {
     }
 
     setupDebugControls() {
-        // Existing controls... R for Reset, Enter for Arm/Disarm
         window.addEventListener('keydown', (event) => {
-            if (event.key === 'r' || event.key === 'R') {
-                console.log("Debug: Resetting Drone...");
-                this.drone.reset({ x: 0, y: 1, z: 0 });
-            }
-            if (event.key === 'Enter') {
-                if (this.drone.armed) {
-                    console.log("Debug: Disarming Drone...");
-                    this.drone.disarm();
+            // Reset ('r' or 'R')
+            if (event.key.toLowerCase() === 'r') {
+                // Ensure drone exists before resetting
+                if (this.drone) {
+                    console.log("Debug: Resetting Drone...");
+                    this.drone.reset({ x: 0, y: 1, z: 0 });
                 } else {
-                    console.log("Debug: Arming Drone...");
-                    this.drone.arm();
+                    console.warn("Debug: Cannot reset, drone not initialized.");
+                }
+            }
+            // Arm/Disarm ('Enter')
+            if (event.key === 'Enter') {
+                // Ensure drone exists
+                if (this.drone) {
+                    if (this.drone.armed) {
+                        console.log("Debug: Disarming Drone...");
+                        this.drone.disarm();
+                    } else {
+                        console.log("Debug: Arming Drone...");
+                        this.drone.arm();
+                    }
+                } else {
+                    console.warn("Debug: Cannot arm/disarm, drone not initialized.");
                 }
             }
 
-            // --- Add Camera Switch Key (Example: 'c') ---
-            if (event.key === 'c' || event.key === 'C') {
+            // Camera Switch ('c' or 'C')
+            if (event.key.toLowerCase() === 'c') {
+                if (!this.renderer || !this.drone) {
+                    console.warn("Debug: Cannot switch camera, renderer or drone not ready.");
+                    return;
+                }
                 if (this.renderer.activeCamera === this.renderer.debugCamera) {
+                    // Check if FPV camera is available on the drone instance
                     if (this.drone.FPVCamera) {
                         console.log("Switching to FPV Camera");
                         this.renderer.setActiveCamera(this.drone.FPVCamera);
                     } else {
-                        console.warn("Cannot switch: FPV Camera not available.");
+                        console.warn("Cannot switch: FPV Camera not found on drone.");
                     }
                 } else {
-                    console.log("Switching to Debug Camera");
-                    this.renderer.setActiveCamera(this.renderer.debugCamera);
+                    // Switch back to debug camera (assuming it always exists)
+                    if (this.renderer.debugCamera) {
+                        console.log("Switching to Debug Camera");
+                        this.renderer.setActiveCamera(this.renderer.debugCamera);
+                    } else {
+                        console.warn("Cannot switch: Debug camera not found on renderer.");
+                    }
                 }
             }
         });
+        console.log("Debug Controls Initialized: R=Reset, Enter=Arm/Disarm, C=Switch Camera");
     }
 
     // Add dispose method for cleanup if needed
