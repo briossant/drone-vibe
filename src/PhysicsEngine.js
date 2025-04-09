@@ -1,7 +1,7 @@
 // src/PhysicsEngine.js
 import Config from './Config.js';
 // Access CANNON via window object (as loaded in index.html)
-const CANNON = window.CANNON;
+import * as CANNON from 'cannon-es'; // <<<--- Import directly
 
 class PhysicsEngine {
     constructor(engine) {

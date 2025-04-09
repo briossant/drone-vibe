@@ -1,7 +1,7 @@
 // src/World.js
 import * as THREE from 'three';
 // Access CANNON via window object
-const CANNON = window.CANNON;
+import * as CANNON from 'cannon-es'; // <<<--- ADD THIS IMPORT
 import Config from './Config.js';
 
 class World {
@@ -48,7 +48,7 @@ class World {
         this.engine.renderer.addObject(this.groundMesh);
 
         // Physics
-        if (CANNON && this.engine.physicsEngine.getMaterial) {
+        if (this.engine.physicsEngine.getMaterial) {
             const groundShape = new CANNON.Plane();
             this.groundBody = new CANNON.Body({
                 mass: 0, // Static
@@ -81,7 +81,7 @@ class World {
         this.engine.renderer.addObject(this.testCubeMesh);
 
         // Physics
-        if (CANNON && this.engine.physicsEngine.getMaterial) {
+        if (this.engine.physicsEngine.getMaterial) {
             const cubeShape = new CANNON.Box(new CANNON.Vec3(halfExtents, halfExtents, halfExtents));
             this.testCubeBody = new CANNON.Body({
                 mass: 0.2, // Give it some mass (kg)
