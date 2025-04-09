@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPV Drone Simulator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- Canvas for Three.js rendering -->
+<canvas id="webgl-canvas"></canvas>
+
+<!-- Overlay for On-Screen Display -->
+<div id="osd">
+    <!-- OSD elements will be added here later via JS -->
+    <p>Initializing...</p>
+</div>
+
+<!-- Libraries -->
+<!-- Three.js (Check for the latest version/build) -->
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.161.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.161.0/examples/jsm/"
+        }
+    }
+</script>
+<!-- cannon-es (Physics Engine) -->
+<script type="module">
+    // Make cannon-es available globally for easier access in modules if needed,
+    // or import specifically where required. For simplicity now, add globally.
+    // Alternatively, download and import locally.
+    import * as CANNON from 'https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js';
+    window.CANNON = CANNON; // Make accessible globally for now
+    console.log("CANNON loaded:", window.CANNON ? 'Yes' : 'No');
+</script>
+
+
+<!-- Main Application Script -->
+<!-- type="module" is crucial for using ES6 imports/exports -->
+<script type="module" src="../src/main.js"></script>
+</body>
+</html>
