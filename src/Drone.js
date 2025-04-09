@@ -7,6 +7,7 @@ import Config from './Config.js';
 const localTorque = new CANNON.Vec3();
 const worldTorque = new CANNON.Vec3();
 const thrustForceVec = new CANNON.Vec3();
+const euler = new THREE.Euler(); // Create once, reuse
 
 class Drone {
     constructor(engine) {
@@ -110,8 +111,10 @@ class Drone {
             position: new CANNON.Vec3(initialPosition.x, initialPosition.y, initialPosition.z),
             shape: bodyShape,
             material: this.engine.physicsEngine.getMaterial('default'),
-            linearDamping: 0.2,  // Adjust as needed
-            angularDamping: 0.7, // Crucial for stability, adjust heavily in Phase 5
+
+            // --- Apply Damping from Config ---
+            linearDamping: Config.DRONE_PHYSICS_SETTINGS.linearDamping,
+            angularDamping: Config.DRONE_PHYSICS_SETTINGS.angularDamping, // Key for Phase 5 stability
         });
 
         body.updateMassProperties(); // Calculate inertia
@@ -119,6 +122,7 @@ class Drone {
         if (Config.DEBUG_MODE) {
             console.log(`Drone Physics: Mass=${body.mass.toFixed(3)}`);
             console.log(`Drone Physics: Inertia=`, body.inertia);
+            console.log(`Drone Physics: LinearDamping=${body.linearDamping}, AngularDamping=${body.angularDamping}`); // Log damping
         }
         return body;
     }
@@ -247,14 +251,42 @@ class Drone {
         return this.fpvCamera;
     }
 
+    // Get relevant state for UI Manager - ENHANCED for Phase 5
     getState() {
         if (!this.physicsBody) return null;
-        // Clone physics vectors/quaternions if they will be modified externally
+
+        // Calculate Speed
+        const speed = this.physicsBody.velocity.length();
+
+        // Calculate Attitude (Roll, Pitch, Yaw) from Quaternion
+        // Use 'YXZ' order: Apply Yaw first globally, then Pitch locally, then Roll locally. Common for aircraft/drones.
+        euler.setFromQuaternion(this.physicsBody.quaternion, 'YXZ');
+        // Convert radians to degrees for display
+        const rollDeg = euler.z * 180 / Math.PI; // Roll is around local Z in YXZ order convention
+        const pitchDeg = euler.y * 180 / Math.PI;// Pitch is around local Y in YXZ order convention
+        const yawDeg = euler.x * 180 / Math.PI;  // Yaw is around local X in YXZ order convention
+        // NOTE: The axis mapping (euler.x/y/z to Roll/Pitch/Yaw) depends heavily on the chosen Euler order ('YXZ')
+        // and how Three.js defines those rotations. Double-check this visually if the OSD seems wrong.
+        // Let's redefine based on common understanding for 'YXZ' (often ZXY in THREE Euler based on axis):
+        // Re-checking THREE docs for YXZ order: x is Pitch, y is Yaw, z is Roll.
+        const pitchDeg_Corrected = euler.x * 180 / Math.PI;
+        const yawDeg_Corrected = euler.y * 180 / Math.PI;
+        const rollDeg_Corrected = euler.z * 180 / Math.PI;
+
+
         return {
-            position: this.physicsBody.position.clone(),
+            position: this.physicsBody.position.clone(), // Clone to prevent accidental modification
             velocity: this.physicsBody.velocity.clone(),
             quaternion: this.physicsBody.quaternion.clone(),
             armed: this.armed,
+            // --- New Data for OSD ---
+            speed: speed,
+            altitude: this.physicsBody.position.y, // Directly use Y position
+            euler: { // Euler angles in degrees
+                roll: rollDeg_Corrected,
+                pitch: pitchDeg_Corrected,
+                yaw: yawDeg_Corrected,
+            }
         };
     }
 
