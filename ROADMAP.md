@@ -200,3 +200,167 @@
   *   Comprehensive project documentation.
   *   Clear plan/documentation outlining potential future integration points.
 *   **Testing:** Deploy the static build to a simple static host (like GitHub Pages or Netlify) or serve locally and verify full functionality.
+
+---
+
+## Phase 9: Main Menu Implementation (Est. 2 - 4 Days)
+
+*   **Goal:** Create a distinct main menu screen that appears on application load, acting as the entry point to the simulator and settings.
+*   **Tasks:**
+    *   **UI Design & Structure:**
+        *   Design the visual layout of the main menu (e.g., background, title, buttons).
+        *   Create necessary HTML elements (outside the `<canvas>` and `#osd`) for the main menu overlay. Style them using CSS (`display: block/none` to show/hide).
+    *   **State Management:**
+        *   Modify `main.js` or `SimulatorEngine` to initially display the main menu instead of immediately starting the simulation initialization.
+        *   Implement a simple state machine (e.g., `MENU`, `LOADING`, `SIMULATING`) to manage application flow.
+    *   **Menu Options & Actions:**
+        *   Add buttons like "Fly", "Settings", "Controls", (optional: "Help").
+        *   "Fly" button: Hides the main menu, triggers the asset loading and simulator initialization process (async `engine.initialize()` then `engine.start()`), and transitions the state to `LOADING` then `SIMULATING`.
+        *   "Settings" button: Placeholder for linking to in-sim settings later.
+        *   "Controls" button: Could show a static overlay displaying default controls, or link to the in-sim controls configuration later.
+    *   **Background:** Keep the WebGL canvas hidden or display a static background image/scene while the main menu is active. Avoid initializing the full 3D scene until "Fly" is clicked.
+*   **Deliverables:**
+    *   A functional main menu screen displayed on startup.
+    *   Clicking "Fly" successfully initiates the loading and launching of the simulator.
+    *   Basic structure for adding other menu options (Settings, Controls).
+*   **Key Considerations:** Keep the main menu visually clean and responsive. The transition from menu to simulator loading needs clear visual feedback (e.g., a loading indicator replaces the menu).
+
+---
+
+## Phase 10: In-Sim Settings Menu & Configuration Management (Est. 3 - 4 Days)
+
+*   **Goal:** Implement the foundational UI for the *in-simulation* settings menu (accessed while flying) and the logic to manage configuration changes.
+*   **Tasks:**
+    *   **In-Sim Menu UI:**
+        *   Design a simple overlay for the in-sim settings menu (distinct from the main menu).
+        *   Use HTML/CSS for the container and main sections (e.g., "Resume", "Settings", "Controls", "Restart Flight", "Main Menu").
+        *   Implement logic (likely in `UIManager` or a dedicated `InGameMenuManager`) to toggle this menu's visibility (e.g., via 'Esc' key).
+    *   **Simulation Pause:** Ensure the simulation (physics stepping, drone updates, input processing *for flight*) pauses when the in-sim menu is open and resumes correctly. Release pointer lock.
+    *   **Configuration Handling:**
+        *   Refactor `Config.js`: Identify user-configurable settings. Create `defaultConfig.js` and `userConfig` object.
+        *   Implement loading settings: On *application start* (before the main menu potentially), load saved `userConfig` from `localStorage` or use defaults.
+        *   Implement saving settings: Provide "Apply/Save" mechanism within the in-sim menu to store `userConfig` to `localStorage`.
+        *   Implement applying settings: Create functions in relevant modules (`Drone`, `PhysicsEngine`, `InputManager`, `Renderer`) to update parameters based on the *current* `userConfig`.
+*   **Deliverables:**
+    *   A functional in-sim menu overlay accessible during flight.
+    *   Simulation pauses correctly when the in-sim menu is active.
+    *   Settings are loaded at application start and can be saved/applied from the in-sim menu.
+    *   Core modules ready to accept updated configuration values.
+    *   Options to "Resume", "Restart Flight" (calling `drone.reset()`), and "Return to Main Menu" (stopping simulation, showing main menu).
+*   **Key Considerations:** Ensure clear distinction between main menu and in-sim menu. Pause/resume logic needs to be robust. `localStorage` is simple but check limitations if complex config is needed.
+
+---
+
+## Phase 11: Implementing Settings Panels (Fly, Physics, Controls) (Est. 4 - 6 Days)
+
+*   **Goal:** Populate the *in-sim* menu sections with interactive UI elements to allow users to modify key simulator parameters.
+*   **Tasks:**
+    *   **UI Element Creation:** Develop helper functions (or use a minimal library) within `UIManager`/`InGameMenuManager` to create common UI elements (sliders, checkboxes, dropdowns, input fields, button mappings).
+    *   **Populate "Fly Settings":** FPV FOV, Roll/Pitch/Yaw sensitivity, (Optional) RC Rates/Expo inputs.
+    *   **Populate "Physics Settings":** Drone Mass, Linear/Angular Damping, Gravity, (Optional/Advanced) Force/Torque multipliers.
+    *   **Populate "Controls Settings":** Keyboard remapping UI, Gamepad Mode selection (dropdown), Axis Inversion checkboxes, Deadzone slider, Button remapping UI (listening for presses).
+    *   **Integration:** Connect UI element changes to update the `userConfig` object in memory. Ensure the "Apply/Save" mechanism triggers the application of these settings to the running simulation.
+*   **Deliverables:**
+    *   Functional UI elements within the in-sim menu for Fly, Physics, and Controls settings.
+    *   User changes in the menu update the simulator's behavior after applying/saving.
+    *   Settings persist across browser sessions (via `localStorage`).
+*   **Key Considerations:** Avoid overwhelming the user; start with the most impactful settings. Provide clear labels. Real-time application vs. Apply button (Apply is often safer). Input validation for number fields. Remapping UI can be complex; start simply.
+
+---
+
+## Phase 12: Flight Model Enhancement & Feel (Est. 4 - 7 Days+)
+
+*   **Goal:** Improve the realism and "feel" of the drone flight, moving beyond basic rate control and damping.
+*   **Tasks:**
+    *   **PID Controller Implementation (Rate Mode):** Implement PID controllers within the `Drone`'s `applyControls` or a dedicated `FlightController` class to stabilize *angular velocity* based on user input. Tune P, I, and D gains iteratively (make gains potentially configurable later - Advanced Physics).
+    *   **Angle/Horizon Mode (Optional but Recommended):** Implement Angle mode (PID stabilizing *angle*) and/or Horizon mode (hybrid self-leveling). Requires integrating gravity vector awareness.
+    *   **Air Resistance / Drag Model:** Implement more sophisticated drag forces beyond simple damping (e.g., proportional to velocity squared, potentially varying with orientation).
+    *   **Thrust Curve / Motor Model:** Simulate a non-linear thrust curve (motors less efficient at extremes) and optionally motor response delay/ramp-up.
+*   **Deliverables:**
+    *   Significantly improved flight stability and responsiveness via PID control (Rate Mode).
+    *   (Optional) Functional Angle/Horizon flight modes selectable via UI/Key.
+    *   More realistic air resistance affecting drone movement.
+    *   More realistic thrust/motor response simulation.
+    *   Smoother, more believable flight characteristics overall.
+*   **Key Considerations:** PID tuning is notoriously difficult and time-consuming; make it iterative. Aerodynamic simulation can become complex; start simple. Clearly separate flight modes in the code.
+
+---
+
+## Phase 13: UX, Visual & Feedback Polish (Est. 4 - 6 Days)
+
+*   **Goal:** Enhance the user experience through better visual feedback, smoother transitions, and a more immersive interface.
+*   **Tasks:**
+    *   **Graphical OSD:** Replace/augment text OSD with graphical representations (HTML/CSS/SVG or canvas 2D). Implement graphical attitude indicator (artificial horizon), throttle/input gauges, flight mode display.
+    *   **Loading Screen/Indicator:** Implement a user-friendly loading screen/progress indicator displayed between clicking "Fly" on the main menu and the simulator becoming interactive.
+    *   **Collision Feedback:** Add subtle screen shake effect on collisions (camera movement) and optionally a brief visual glitch/static effect.
+    *   **Post-Processing Effects (Optional):** Integrate Three.js post-processing (`EffectComposer`). Add subtle Bloom, Vignette, or Motion Blur. Make toggleable in a new "Graphics" section of the *in-sim* settings menu.
+    *   **Smoother Reset/Transitions:** Implement a short fade-out/fade-in transition when resetting the drone or loading the level, instead of an instant jump.
+*   **Deliverables:**
+    *   A more visually appealing and informative graphical OSD.
+    *   A proper loading screen experience.
+    *   Visual feedback on collisions.
+    *   (Optional) Toggleable post-processing effects enhancing visuals.
+    *   Smoother drone reset and level loading sequences.
+*   **Key Considerations:** Graphical OSD requires careful design and implementation. Post-processing impacts performance; profile carefully and make effects optional/configurable. Keep feedback noticeable but not overly distracting.
+
+---
+
+## Phase 14: Audio Integration (Est. 3 - 4 Days)
+
+*   **Goal:** Add audio feedback to significantly increase immersion and provide crucial cues.
+*   **Tasks:**
+    *   **Audio Engine Setup:** Integrate the Web Audio API. Create a simple `AudioManager` class to handle loading, playing, and managing sounds.
+    *   **Motor Sounds:** Implement looping motor hum sounds. Modulate pitch and volume based on average propeller speed / overall thrust. Consider subtle variations for acceleration/deceleration.
+    *   **Collision Sounds:** Play different impact sounds based on collision intensity (relative velocity).
+    *   **Wind Noise:** Implement looping wind sounds that increase in volume/intensity based on the drone's linear velocity.
+    *   **UI Sounds:** Add subtle audio feedback for menu interactions (main menu and in-sim menu clicks, confirmations), Arm/Disarm actions.
+    *   **Audio Settings:** Add options in the *in-sim* menu (new "Audio" section) to control master volume and toggle sound categories (motors, collisions, wind, UI).
+*   **Deliverables:**
+    *   Functional audio system using Web Audio API.
+    *   Dynamic motor sounds responding to thrust.
+    *   Collision and wind audio feedback based on physics state.
+    *   UI sound effects for better interaction feedback.
+    *   Volume/toggle controls in the settings menu.
+*   **Key Considerations:** Finding good, royalty-free sound assets. Performance impact of audio (usually minor with Web Audio API). Balancing sound levels effectively is crucial for good UX.
+
+---
+
+## Phase 15: Content Expansion & Gameplay Elements (Est. 4 - 7 Days)
+
+*   **Goal:** Add variety to the simulation environment and introduce simple gameplay mechanics.
+*   **Tasks:**
+    *   **Environment Variation:** Design and implement 1-2 alternative simple environments (e.g., indoor space, different obstacle layout). Create a mechanism on the **Main Menu** to select the environment before starting. Refactor `World.js` to support loading different scene definitions dynamically.
+    *   **More Obstacle Types:** Add ramps, tunnels, or other challenging static geometry to environments.
+    *   **Basic Race/Challenge Mode:** Implement simple waypoint/gate sequence system within environments. Add a timer (start/stop trigger gates). Display lap times/best times on the UI (potentially on OSD during race, summary screen after, or main menu).
+    *   **Wind Simulation:** Implement a basic wind model (e.g., constant direction/strength or simple gusts). Apply wind force to the drone's physics body. Make wind configurable in the *in-sim* settings (e.g., off/low/medium/high).
+    *   **Drone Presets:** Define 2-3 drone presets with different visual models (if available) and distinct physics parameters (mass, power, handling) loaded from configuration. Allow selection from the **Main Menu** before starting a flight.
+*   **Deliverables:**
+    *   Multiple selectable environments/layouts accessible from the main menu.
+    *   A simple race timer/checkpoint system providing a basic gameplay loop.
+    *   Basic, configurable wind simulation affecting flight dynamics.
+    *   Selectable drone presets with differing characteristics available from the main menu.
+*   **Key Considerations:** Main menu is the logical place for pre-flight selections (environment, drone). Keep initial gameplay loops simple. Environment loading needs careful management of assets and physics bodies. Wind needs careful balancing.
+
+---
+
+## Phase 16: Final Polish, Testing & Documentation (Est. 3 - 5 Days)
+
+*   **Goal:** Perform final testing, optimize performance, clean up code, and update documentation.
+*   **Tasks:**
+    *   **Cross-Browser/Device Testing:** Test thoroughly on major browsers (Chrome, Firefox, Safari, Edge) and consider different input devices (various gamepads), ensuring menu navigation works correctly.
+    *   **Performance Profiling & Optimization:** Use browser dev tools to identify and address bottlenecks (CPU: physics, complex JS; GPU: rendering, shadows, post-processing). Optimize draw calls, physics steps, menu interaction performance.
+    *   **Bug Fixing:** Address any remaining bugs or inconsistencies found during testing, focusing on state transitions (main menu -> loading -> sim -> in-sim menu -> main menu).
+    *   **Code Review & Refactoring:** Review codebase for clarity, consistency, maintainability. Refactor complex sections. Add comments and potentially JSDoc blocks where needed.
+    *   **Update Documentation:** Update `README.md` and potentially create new documentation files covering:
+        *   Application flow (including main menu).
+        *   New features (in-sim menu, flight modes, audio, race mode, etc.).
+        *   All configuration options (in-sim settings).
+        *   Controls (including remapping instructions).
+        *   How to use gameplay modes.
+    *   **Final Build Check:** Ensure the static build runs correctly without errors from start to finish.
+*   **Deliverables:**
+    *   A stable, performant, and polished version of the simulator with a functional main menu.
+    *   Addressed major bugs and inconsistencies, particularly around state management.
+    *   Improved code quality and comments.
+    *   Comprehensive, updated documentation reflecting all features.
+*   **Key Considerations:** Allocate sufficient time for testing the complete user flow and fixing bugs related to state transitions. Performance optimization is an ongoing process. Clear documentation is crucial.

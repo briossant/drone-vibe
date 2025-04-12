@@ -7,17 +7,39 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<!-- Canvas for Three.js rendering -->
-<canvas id="webgl-canvas"></canvas>
 
-<!-- Overlay for On-Screen Display -->
-<div id="osd">
+<!-- ========= NEW: Main Menu Overlay ========= -->
+<div id="main-menu" class="overlay">
+    <div class="menu-content">
+        <h1>FPV Drone Simulator</h1>
+        <button id="fly-button">Fly</button>
+        <button id="settings-button" disabled>Settings (In-Sim)</button> <!-- Disabled for now -->
+        <button id="controls-button" disabled>Controls (In-Sim)</button> <!-- Disabled for now -->
+        <!-- Add other menu items like Help later -->
+    </div>
+</div>
+<!-- ========================================== -->
+
+<!-- ========= NEW: Loading Indicator ========= -->
+<div id="loading-indicator" class="overlay hidden"> <!-- Initially hidden -->
+    <div class="menu-content">
+        <p>Loading...</p>
+        <!-- Optional: Add a spinner or progress bar later -->
+    </div>
+</div>
+<!-- ========================================== -->
+
+
+<!-- Canvas for Three.js rendering (Initially hidden potentially) -->
+<canvas id="webgl-canvas" class="hidden"></canvas> <!-- Add hidden class -->
+
+<!-- Overlay for On-Screen Display (Initially hidden) -->
+<div id="osd" class="hidden"> <!-- Add hidden class -->
     <!-- OSD elements will be added here later via JS -->
     <p>Initializing...</p>
 </div>
 
-<!-- Libraries -->
-<!-- Three.js (Check for the latest version/build) -->
+<!-- Libraries (Keep as is) -->
 <script type="importmap">
     {
         "imports": {
@@ -28,8 +50,7 @@
     }
 </script>
 
-<!-- Main Application Script -->
-<!-- type="module" is crucial for using ES6 imports/exports -->
+<!-- Main Application Script (Keep as is) -->
 <script type="module" src="../src/main.js"></script>
 </body>
 </html>
