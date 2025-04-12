@@ -5,27 +5,30 @@ import AssetLoader from './AssetLoader.js'; // Import the loader instance
 
 // Make main function async
 async function main() {
-    const osd = document.getElementById('osd'); // Get OSD element early
+    const osd = document.getElementById('osd'); // Get OSD element for potential error messages
 
     if (Config.DEBUG_MODE) {
         console.log("App starting...");
-        if (osd) osd.innerHTML = '<p>Loading assets...</p>'; // Initial loading message
+        // Keep the initial HTML message ("Initializing...") or clear it
+        // osd.innerHTML = '<p>Loading assets...</p>'; // REMOVE/COMMENT OUT
     }
 
     try {
         // --- Preload Assets ---
-        // AssetLoader is now a singleton instance
         await AssetLoader.preloadAssets();
-        if (osd) osd.innerHTML = '<p>Initializing simulator...</p>'; // Update status
+        // osd.innerHTML = '<p>Initializing simulator...</p>'; // REMOVE/COMMENT OUT
 
-        // --- Initialize Engine (potentially async now) ---
+        // --- Initialize Engine ---
         const engine = new SimulatorEngine();
-        await engine.initialize(); // Make initialize async if needed (it will be)
+        // UIManager.initialize() will be called inside engine.initialize()
+        // and will set the OSD structure correctly.
+        await engine.initialize();
 
-        if (osd) osd.innerHTML = '<p>Starting simulation...</p>'; // Update status
+        // osd.innerHTML = '<p>Starting simulation...</p>'; // REMOVE/COMMENT OUT
 
         // --- Start Engine ---
-        engine.start(); // Start the loop AFTER initialization is fully complete
+        // The first call to uiManager.update() in the loop will populate the OSD.
+        engine.start();
 
         if (Config.DEBUG_MODE) {
             window.simEngine = engine;
@@ -34,7 +37,7 @@ async function main() {
 
     } catch (error) {
         console.error("Failed to initialize or start simulator:", error);
-        // Display error to user
+        // Display error to user - KEEP THIS PART
         if (osd) {
             osd.innerHTML = `<p style="color: red;">Error: ${error.message}. Check console.</p>`;
         }

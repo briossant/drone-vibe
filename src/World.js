@@ -34,7 +34,24 @@ class World {
         // --- Obstacles ---
         this.createObstacle_Box({ x: 5, y: 0.5, z: 5 }, { width: 1, height: 1, depth: 1 });
         this.createObstacle_Box({ x: -3, y: 1, z: -6 }, { width: 4, height: 2, depth: 0.5 });
-        // Add more obstacles (gates, walls etc.)
+
+        // Gate 1: Straight ahead from start
+        this.createObstacle_Gate({ x: 0, y: 0, z: -8 }, { width: 4, height: 2.5, depth: 0.2 }, 0);
+
+        // Gate 2: Further out, angled slightly right
+        this.createObstacle_Gate({ x: 10, y: 0, z: -18 }, { width: 4, height: 2.5, depth: 0.2 }, -Math.PI / 6); // Rotate -30 degrees
+
+        // Gate 3: To the left, facing towards the center somewhat, slightly elevated
+        this.createObstacle_Gate({ x: -12, y: 0.5, z: -15 }, { width: 5, height: 3, depth: 0.2 }, Math.PI / 4); // Rotate 45 degrees
+
+        // Gate 4: Further back, facing forward again
+        this.createObstacle_Gate({ x: 0, y: 0, z: -28 }, { width: 4, height: 2.5, depth: 0.2 }, 0);
+
+        this.createObstacle_Box({ x: 15, y: 1.5, z: -10 }, { width: 0.5, height: 3, depth: 8 }); // Example Wall
+
+        if (Config.DEBUG_MODE) {
+            console.log('World: Initialization complete with gates.');
+        }
     }
 
     createGround() {
@@ -181,6 +198,72 @@ class World {
             if (Config.DEBUG_MODE) console.log(`World: Created static obstacle box at (${position.x}, ${position.y}, ${position.z})`);
         } else {
             console.error("World: CANNON or Physics materials not available for obstacle box.");
+        }
+    }
+
+    // In World.js
+    createObstacle_Gate(position, size = { width: 3, height: 2, depth: 0.2 }) {
+        const { width, height, depth } = size;
+        const pillarHeight = height;
+        const pillarWidth = depth; // Use depth as thickness
+        const topBarWidth = width;
+        const topBarHeight = depth;
+
+        // --- Visuals (Group multiple meshes) ---
+        const gateGroup = new THREE.Group();
+        gateGroup.position.set(position.x, position.y, position.z); // Set group position
+
+        const material = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.7 });
+
+        // Left Pillar
+        const leftPillarGeo = new THREE.BoxGeometry(pillarWidth, pillarHeight, depth);
+        const leftPillarMesh = new THREE.Mesh(leftPillarGeo, material);
+        leftPillarMesh.position.set(-width / 2 + pillarWidth / 2, pillarHeight / 2, 0); // Relative position
+        leftPillarMesh.castShadow = true; leftPillarMesh.receiveShadow = true;
+        gateGroup.add(leftPillarMesh);
+
+        // Right Pillar
+        const rightPillarGeo = new THREE.BoxGeometry(pillarWidth, pillarHeight, depth);
+        const rightPillarMesh = new THREE.Mesh(rightPillarGeo, material);
+        rightPillarMesh.position.set(width / 2 - pillarWidth / 2, pillarHeight / 2, 0); // Relative position
+        rightPillarMesh.castShadow = true; rightPillarMesh.receiveShadow = true;
+        gateGroup.add(rightPillarMesh);
+
+        // Top Bar
+        const topBarGeo = new THREE.BoxGeometry(topBarWidth, topBarHeight, depth);
+        const topBarMesh = new THREE.Mesh(topBarGeo, material);
+        topBarMesh.position.set(0, height - topBarHeight / 2, 0); // Relative position
+        topBarMesh.castShadow = true; topBarMesh.receiveShadow = true;
+        gateGroup.add(topBarMesh);
+
+        this.engine.renderer.addObject(gateGroup); // Add the whole group
+
+        // --- Physics (Compound Body) ---
+        if (this.engine.physicsEngine.getMaterial) {
+            const gateBody = new CANNON.Body({
+                mass: 0, // Static
+                position: new CANNON.Vec3(position.x, position.y, position.z), // Use absolute position here
+                material: this.engine.physicsEngine.getMaterial('default')
+            });
+
+            // Left Pillar Shape
+            const leftPillarShape = new CANNON.Box(new CANNON.Vec3(pillarWidth / 2, pillarHeight / 2, depth / 2));
+            const leftPillarOffset = new CANNON.Vec3(-width / 2 + pillarWidth / 2, pillarHeight / 2, 0); // Relative offset
+            gateBody.addShape(leftPillarShape, leftPillarOffset);
+
+            // Right Pillar Shape
+            const rightPillarShape = new CANNON.Box(new CANNON.Vec3(pillarWidth / 2, pillarHeight / 2, depth / 2));
+            const rightPillarOffset = new CANNON.Vec3(width / 2 - pillarWidth / 2, pillarHeight / 2, 0); // Relative offset
+            gateBody.addShape(rightPillarShape, rightPillarOffset);
+
+            // Top Bar Shape
+            const topBarShape = new CANNON.Box(new CANNON.Vec3(topBarWidth / 2, topBarHeight / 2, depth / 2));
+            const topBarOffset = new CANNON.Vec3(0, height - topBarHeight / 2, 0); // Relative offset
+            gateBody.addShape(topBarShape, topBarOffset);
+
+            this.engine.physicsEngine.addBody(gateBody);
+            this.obstacles.push({ visual: gateGroup, body: gateBody }); // Store group and body
+            if (Config.DEBUG_MODE) console.log(`World: Created static gate at (${position.x}, ${position.y}, ${position.z})`);
         }
     }
 

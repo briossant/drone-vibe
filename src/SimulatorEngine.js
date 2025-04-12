@@ -47,31 +47,24 @@ class SimulatorEngine {
         this.inputManager.initialize();
         this.uiManager.initialize(); // OSD elements are created here
 
-        // --- Initialize World (uses assets - skybox) ---
-        // World initialization might load things itself or rely on preloaded assets
-        await this.world.initialize(); // Make world.initialize async if needed
+        await this.world.initialize();
 
-        // --- Initialize Drone (uses assets - GLTF model) ---
-        // Drone initialization needs the loaded model
-        await this.drone.initialize({ x: 0, y: 1, z: 0 }); // Make drone.initialize async
+        // Initialize Drone - uses default start position from Config now
+        await this.drone.initialize(); // No need to pass position here if using default
 
-        // Set the INITIAL active camera (after drone/FPV cam is created)
+        // Set the INITIAL active camera
+        // ... (camera switching logic remains the same) ...
         if (this.renderer.debugCamera) {
-            // Start with debug camera for easier setup/viewing
             this.renderer.setActiveCamera(this.renderer.debugCamera);
             console.log("SimulatorEngine: Initial active camera set to DEBUG camera.");
+        } else if (this.drone.FPVCamera) {
+            this.renderer.setActiveCamera(this.drone.FPVCamera);
+            console.warn("SimulatorEngine: Using FPV camera as fallback initial camera.");
         } else {
-            console.error("SimulatorEngine: Debug camera not found in Renderer!");
-            if (this.drone.FPVCamera) {
-                this.renderer.setActiveCamera(this.drone.FPVCamera);
-                console.warn("SimulatorEngine: Using FPV camera as fallback initial camera.");
-            } else {
-                console.error("SimulatorEngine: No usable camera found!");
-            }
+            console.error("SimulatorEngine: No usable camera found!");
         }
 
-
-        this.setupDebugControls(); // Setup controls after everything is ready
+        this.setupDebugControls(); // Setup controls AFTER everything is ready
 
         if (Config.DEBUG_MODE) console.log('SimulatorEngine: Initialization complete.');
     }
@@ -131,59 +124,70 @@ class SimulatorEngine {
     }
 
     setupDebugControls() {
+        // --- Keyboard Controls ---
         window.addEventListener('keydown', (event) => {
             // Reset ('r' or 'R')
             if (event.key.toLowerCase() === 'r') {
-                // Ensure drone exists before resetting
                 if (this.drone) {
-                    console.log("Debug: Resetting Drone...");
-                    this.drone.reset({ x: 0, y: 1, z: 0 });
+                    console.log("Debug: Resetting Drone via Keyboard...");
+                    // Use the configured start position for reset
+                    this.drone.reset(Config.DRONE_START_POSITION);
                 } else {
                     console.warn("Debug: Cannot reset, drone not initialized.");
                 }
             }
             // Arm/Disarm ('Enter')
             if (event.key === 'Enter') {
-                // Ensure drone exists
-                if (this.drone) {
-                    if (this.drone.armed) {
-                        console.log("Debug: Disarming Drone...");
-                        this.drone.disarm();
-                    } else {
-                        console.log("Debug: Arming Drone...");
-                        this.drone.arm();
-                    }
-                } else {
-                    console.warn("Debug: Cannot arm/disarm, drone not initialized.");
-                }
+                this.toggleArmDisarm(); // Use helper function
             }
-
             // Camera Switch ('c' or 'C')
             if (event.key.toLowerCase() === 'c') {
-                if (!this.renderer || !this.drone) {
-                    console.warn("Debug: Cannot switch camera, renderer or drone not ready.");
-                    return;
-                }
-                if (this.renderer.activeCamera === this.renderer.debugCamera) {
-                    // Check if FPV camera is available on the drone instance
-                    if (this.drone.FPVCamera) {
-                        console.log("Switching to FPV Camera");
-                        this.renderer.setActiveCamera(this.drone.FPVCamera);
-                    } else {
-                        console.warn("Cannot switch: FPV Camera not found on drone.");
-                    }
-                } else {
-                    // Switch back to debug camera (assuming it always exists)
-                    if (this.renderer.debugCamera) {
-                        console.log("Switching to Debug Camera");
-                        this.renderer.setActiveCamera(this.renderer.debugCamera);
-                    } else {
-                        console.warn("Cannot switch: Debug camera not found on renderer.");
-                    }
-                }
+                this.switchCamera(); // Use helper function
             }
         });
-        console.log("Debug Controls Initialized: R=Reset, Enter=Arm/Disarm, C=Switch Camera");
+
+        // --- Gamepad Button Controls (Polled in InputManager update) ---
+        // We'll add logic in InputManager to check for button presses each frame
+
+        console.log("Debug Controls Initialized: R=Reset, Enter=Arm/Disarm, C=Switch Camera. Check Gamepad buttons.");
+    }
+
+    // Helper function for Arm/Disarm logic
+    toggleArmDisarm() {
+        if (this.drone) {
+            if (this.drone.armed) {
+                console.log("Debug: Disarming Drone...");
+                this.drone.disarm();
+            } else {
+                console.log("Debug: Arming Drone...");
+                this.drone.arm();
+            }
+        } else {
+            console.warn("Debug: Cannot arm/disarm, drone not initialized.");
+        }
+    }
+
+    // Helper function for Camera Switching logic
+    switchCamera() {
+        if (!this.renderer || !this.drone) {
+            console.warn("Debug: Cannot switch camera, renderer or drone not ready.");
+            return;
+        }
+        if (this.renderer.activeCamera === this.renderer.debugCamera) {
+            if (this.drone.FPVCamera) {
+                console.log("Switching to FPV Camera");
+                this.renderer.setActiveCamera(this.drone.FPVCamera);
+            } else {
+                console.warn("Cannot switch: FPV Camera not found on drone.");
+            }
+        } else {
+            if (this.renderer.debugCamera) {
+                console.log("Switching to Debug Camera");
+                this.renderer.setActiveCamera(this.renderer.debugCamera);
+            } else {
+                console.warn("Cannot switch: Debug camera not found on renderer.");
+            }
+        }
     }
 
     // Add dispose method for cleanup if needed

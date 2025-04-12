@@ -4,14 +4,14 @@ import Config from './Config.js';
 class InputManager {
     constructor(engine) {
         this.engine = engine;
-        this.keys = {}; // Track pressed keys
-        this.controls = { // Normalized control values
-            roll: 0,     // -1 to 1 (A/D or Left Arrow/Right Arrow)
-            pitch: 0,    // -1 to 1 (W/S or Up Arrow/Down Arrow)
-            yaw: 0,      // -1 to 1 (Q/E - example)
-            thrust: 0,   // 0 to 1 (Shift/Control)
-        };
+        this.keys = {};
+        this.controls = { roll: 0, pitch: 0, yaw: 0, thrust: 0 };
         this.gamepads = {}; // Store connected gamepad states
+        this.activeGamepadIndex = null; // Track the primary gamepad being used
+
+        // Track button states for edge detection (press/release)
+        this.gamepadButtonState = {}; // { buttonIndex: boolean (pressed) }
+        this.prevGamepadButtonState = {};
 
         this._boundKeyDown = this.handleKeyDown.bind(this);
         this._boundKeyUp = this.handleKeyUp.bind(this);
@@ -26,10 +26,15 @@ class InputManager {
     initialize() {
         window.addEventListener('keydown', this._boundKeyDown);
         window.addEventListener('keyup', this._boundKeyUp);
-        window.addEventListener('gamepadconnected', this._boundGamepadConnected);
-        window.addEventListener('gamepaddisconnected', this._boundGamepadDisconnected);
 
-        this.scanGamepads();
+        if (Config.GAMEPAD_ENABLED) {
+            window.addEventListener('gamepadconnected', this._boundGamepadConnected);
+            window.addEventListener('gamepaddisconnected', this._boundGamepadDisconnected);
+            this.scanGamepads(); // Initial scan
+            if (Config.DEBUG_MODE) console.log('InputManager: Gamepad support enabled.');
+        } else {
+            if (Config.DEBUG_MODE) console.log('InputManager: Gamepad support disabled in Config.');
+        }
 
         if (Config.DEBUG_MODE) {
             console.log('InputManager: Event listeners added.');
@@ -37,61 +42,56 @@ class InputManager {
     }
 
     update() {
-        this.pollGamepads();
-        this.updateKeyboardControls();
-        // Future: Prioritize or combine gamepad/keyboard inputs
+        let gamepadInputDetected = false;
+        if (Config.GAMEPAD_ENABLED && this.activeGamepadIndex !== null) {
+            gamepadInputDetected = this.pollActiveGamepad();
+        }
+
+        // If no active gamepad input detected, update based on keyboard
+        if (!gamepadInputDetected) {
+            this.updateKeyboardControls();
+        }
+
+        // Process button presses AFTER polling
+        this.processGamepadButtonActions();
     }
 
     updateKeyboardControls() {
-        let targetRoll = 0;
-        let targetPitch = 0;
-        let targetYaw = 0;
-        // Start with previous thrust, modify based on keys
-        let currentThrust = this.controls.thrust;
+        // Reset controls if switching from gamepad
+        this.controls.roll = 0;
+        this.controls.pitch = 0;
+        this.controls.yaw = 0;
+        // Maintain thrust unless spacebar is pressed
+        // let currentThrust = this.controls.thrust; // Keep thrust level? Or reset? Let's reset for now.
+        let currentThrust = 0; // Start from zero when using keyboard only this frame
 
-        // --- Mapping (Adjust keys as needed) ---
-        // Roll (A/D or Arrows)
-        if (this.keys['a'] || this.keys['A'] || this.keys['ArrowLeft']) targetRoll = -1;
-        if (this.keys['d'] || this.keys['D'] || this.keys['ArrowRight']) targetRoll = 1;
 
-        // Pitch (W/S or Arrows)
-        // IMPORTANT: Typically 'W'/'ArrowUp' pitches the drone *forward*, which requires a positive pitch input
-        // pitching the nose *down* (negative torque around drone's X-axis).
-        // Let's keep pitch input positive for W/Up and negative for S/Down. The FC logic will apply the correct torque direction.
-        if (this.keys['w'] || this.keys['W'] || this.keys['ArrowUp']) targetPitch = 1;
-        if (this.keys['s'] || this.keys['S'] || this.keys['ArrowDown']) targetPitch = -1;
+        // --- Key Mapping ---
+        if (this.keys['a'] || this.keys['A'] || this.keys['ArrowLeft']) this.controls.roll = -1;
+        if (this.keys['d'] || this.keys['D'] || this.keys['ArrowRight']) this.controls.roll = 1;
 
-        // Yaw (Q/E - example)
-        if (this.keys['q'] || this.keys['Q']) targetYaw = -1; // Rotate left
-        if (this.keys['e'] || this.keys['E']) targetYaw = 1;  // Rotate right
+        if (this.keys['w'] || this.keys['W'] || this.keys['ArrowUp']) this.controls.pitch = 1;
+        if (this.keys['s'] || this.keys['S'] || this.keys['ArrowDown']) this.controls.pitch = -1;
 
-        // Thrust (Shift/Control)
-        const thrustIncrement = 0.03; // How fast thrust changes
-        if (this.keys['Shift']) currentThrust += thrustIncrement;
-        if (this.keys['Control']) currentThrust -= thrustIncrement;
-        if (this.keys[' ']) currentThrust = 0; // Spacebar cuts thrust
+        if (this.keys['q'] || this.keys['Q']) this.controls.yaw = -1;
+        if (this.keys['e'] || this.keys['E']) this.controls.yaw = 1;
 
-        // Clamp thrust
-        currentThrust = Math.max(0, Math.min(1, currentThrust));
+        const thrustIncrement = 0.05; // Make thrust change a bit faster
+        if (this.keys['Shift']) currentThrust = Math.min(1, this.controls.thrust + thrustIncrement); // Use previous thrust state for increment
+        if (this.keys['Control']) currentThrust = Math.max(0, this.controls.thrust - thrustIncrement);
+        if (this.keys[' ']) currentThrust = 0; // Spacebar cuts thrust immediately
 
-        // --- Update Controls State ---
-        // Apply sensitivity directly to the directional controls
-        this.controls.roll = targetRoll * Config.KEYBOARD_SENSITIVITY.roll;
-        this.controls.pitch = targetPitch * Config.KEYBOARD_SENSITIVITY.pitch;
-        this.controls.yaw = targetYaw * Config.KEYBOARD_SENSITIVITY.yaw;
-        // Thrust is usually not scaled by sensitivity here, it's a direct level 0-1
-        this.controls.thrust = currentThrust;
-
-        // Add deadzone logic here if needed in the future
+        // Apply sensitivity
+        this.controls.roll *= Config.KEYBOARD_SENSITIVITY.roll;
+        this.controls.pitch *= Config.KEYBOARD_SENSITIVITY.pitch;
+        this.controls.yaw *= Config.KEYBOARD_SENSITIVITY.yaw;
+        this.controls.thrust = currentThrust; // Thrust is already calculated 0-1
     }
 
     handleKeyDown(event) {
         this.keys[event.key] = true;
-
-        // --- Prevent browser default actions for simulation keys ---
         const simKeys = ['w', 's', 'a', 'd', 'q', 'e', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift', 'Control', ' ', 'Enter', 'r', 'c'];
         if (simKeys.includes(event.key) || simKeys.includes(event.key.toUpperCase())) {
-            // Check both cases for letters
             event.preventDefault();
         }
     }
@@ -101,60 +101,176 @@ class InputManager {
     }
 
     scanGamepads() {
-        const detectedGamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+        if (!navigator.getGamepads) return;
+        const detectedGamepads = navigator.getGamepads();
         for (const gp of detectedGamepads) {
             if (gp) {
-                this.gamepads[gp.index] = gp;
-                if (Config.DEBUG_MODE) console.log(`InputManager: Gamepad ${gp.index} detected on scan: ${gp.id}`);
+                if (!this.gamepads[gp.index]) { // Only log if new
+                    this.handleGamepadConnected({ gamepad: gp }); // Treat it as a connection
+                }
+                this.gamepads[gp.index] = gp; // Update state
+                // Automatically select the first connected gamepad if none is active
+                if (this.activeGamepadIndex === null) {
+                    this.activeGamepadIndex = gp.index;
+                    if (Config.DEBUG_MODE) console.log(`InputManager: Auto-selected Gamepad ${gp.index} as active.`);
+                }
             }
         }
     }
 
-    pollGamepads() {
-        const detectedGamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-        for (const gp of detectedGamepads) {
-            if (gp) {
-                // Update stored state (important for detecting changes)
-                this.gamepads[gp.index] = gp;
-                // --- Add logic to map gamepad axes/buttons to this.controls here ---
-                // Example (needs customization based on gamepad layout):
-                // const deadzone = 0.1;
-                // const rollAxis = gp.axes[0];
-                // const pitchAxis = gp.axes[1]; // Often inverted
-                // const yawAxis = gp.axes[2];
-                // const thrustAxis = gp.axes[3]; // Often -1 to 1, map to 0-1
+    // Polls the *active* gamepad and updates controls
+    // Returns true if significant input was detected, false otherwise
+    pollActiveGamepad() {
+        if (this.activeGamepadIndex === null || !navigator.getGamepads) return false;
 
-                // if (Math.abs(rollAxis) > deadzone) this.controls.roll = rollAxis; else this.controls.roll = 0;
-                // if (Math.abs(pitchAxis) > deadzone) this.controls.pitch = -pitchAxis; else this.controls.pitch = 0; // Invert pitch?
-                // etc...
+        const gp = navigator.getGamepads()[this.activeGamepadIndex];
+        if (!gp || !gp.connected) {
+            // Handle case where the active gamepad disconnects unexpectedly
+            this.handleGamepadDisconnected({ gamepad: { index: this.activeGamepadIndex, id: 'Disconnected' }});
+            return false;
+        }
+
+        // Update stored state
+        this.gamepads[this.activeGamepadIndex] = gp;
+
+        // --- Read Axes ---
+        const { GAMEPAD_AXIS_MAPPING, GAMEPAD_INVERT_AXES, GAMEPAD_DEADZONE, GAMEPAD_SENSITIVITY } = Config;
+        let rollInput = gp.axes[GAMEPAD_AXIS_MAPPING.roll] || 0;
+        let pitchInput = gp.axes[GAMEPAD_AXIS_MAPPING.pitch] || 0;
+        let yawInput = gp.axes[GAMEPAD_AXIS_MAPPING.yaw] || 0;
+        let thrustInputRaw = gp.axes[GAMEPAD_AXIS_MAPPING.thrust] || 0; // Raw -1 to 1
+
+        // Apply Inversions
+        if (GAMEPAD_INVERT_AXES.roll) rollInput *= -1;
+        if (GAMEPAD_INVERT_AXES.pitch) pitchInput *= -1;
+        if (GAMEPAD_INVERT_AXES.yaw) yawInput *= -1;
+        if (GAMEPAD_INVERT_AXES.thrust) thrustInputRaw *= -1;
+
+        // Apply Deadzones
+        rollInput = Math.abs(rollInput) > GAMEPAD_DEADZONE ? rollInput : 0;
+        pitchInput = Math.abs(pitchInput) > GAMEPAD_DEADZONE ? pitchInput : 0;
+        yawInput = Math.abs(yawInput) > GAMEPAD_DEADZONE ? yawInput : 0;
+        // Deadzone for thrust needs care if mapping (-1 to 1) to (0 to 1)
+        // Let's apply deadzone *after* mapping thrust for simplicity now
+
+        // Map Thrust from [-1, 1] to [0, 1]
+        // Assumes stick rests at -1 (inverted) or bottom position
+        let thrustMapped = (thrustInputRaw + 1) / 2;
+        thrustMapped = Math.max(0, Math.min(1, thrustMapped)); // Clamp just in case
+        // Apply deadzone to the mapped thrust (only ignore if very close to bottom)
+        thrustMapped = thrustMapped <= (GAMEPAD_DEADZONE * 0.5) ? 0 : thrustMapped; // Adjusted deadzone check for 0-1 range
+
+
+        // Apply Sensitivity
+        this.controls.roll = rollInput * GAMEPAD_SENSITIVITY.roll;
+        this.controls.pitch = pitchInput * GAMEPAD_SENSITIVITY.pitch;
+        this.controls.yaw = yawInput * GAMEPAD_SENSITIVITY.yaw;
+        this.controls.thrust = thrustMapped; // Use the mapped 0-1 value
+
+        // --- Poll Buttons (Store state for edge detection) ---
+        this.prevGamepadButtonState = { ...this.gamepadButtonState }; // Copy previous state
+        this.gamepadButtonState = {}; // Reset current state
+        let buttonsChanged = false;
+        gp.buttons.forEach((button, index) => {
+            this.gamepadButtonState[index] = button.pressed;
+            if(this.gamepadButtonState[index] !== this.prevGamepadButtonState[index]) {
+                buttonsChanged = true;
+            }
+        });
+
+        // Determine if significant input occurred (axis movement or button change)
+        const significantAxisInput = Math.abs(rollInput) > 0 || Math.abs(pitchInput) > 0 || Math.abs(yawInput) > 0 || Math.abs(thrustMapped) > 0.01; // Allow small thrust values
+        return significantAxisInput || buttonsChanged;
+    }
+
+    // Check for button presses and trigger actions via the engine
+    processGamepadButtonActions() {
+        if (!Config.GAMEPAD_ENABLED || this.activeGamepadIndex === null) return;
+
+        const mapping = Config.GAMEPAD_BUTTON_MAPPING;
+
+        // Check for Arm/Disarm button press (rising edge)
+        if (mapping.armDisarm !== undefined &&
+            this.gamepadButtonState[mapping.armDisarm] &&
+            !this.prevGamepadButtonState[mapping.armDisarm]) {
+            console.log("Debug: Arm/Disarm triggered via Gamepad button", mapping.armDisarm);
+            this.engine.toggleArmDisarm(); // Call engine helper
+        }
+
+        // Check for Reset button press (rising edge)
+        if (mapping.reset !== undefined &&
+            this.gamepadButtonState[mapping.reset] &&
+            !this.prevGamepadButtonState[mapping.reset]) {
+            console.log("Debug: Reset triggered via Gamepad button", mapping.reset);
+            if (this.engine.drone) {
+                this.engine.drone.reset(Config.DRONE_START_POSITION);
             }
         }
+
+        // Add checks for other mapped buttons (e.g., camera switch) if needed
+        // if (mapping.cameraSwitch !== undefined && ... ) { this.engine.switchCamera(); }
     }
+
 
     handleGamepadConnected(event) {
+        const gp = event.gamepad;
         if (Config.DEBUG_MODE) {
-            console.log(`InputManager: Gamepad connected at index ${event.gamepad.index}: ${event.gamepad.id}. ${event.gamepad.buttons.length} buttons, ${event.gamepad.axes.length} axes.`);
+            console.log(`InputManager: Gamepad connected at index ${gp.index}: ${gp.id}. ${gp.buttons.length} buttons, ${gp.axes.length} axes.`);
         }
-        this.gamepads[event.gamepad.index] = event.gamepad;
+        this.gamepads[gp.index] = gp;
+        this.gamepadButtonState[gp.index] = {}; // Initialize button state storage
+        this.prevGamepadButtonState[gp.index] = {};
+
+        // Automatically select the first connected gamepad if none is active
+        if (this.activeGamepadIndex === null) {
+            this.activeGamepadIndex = gp.index;
+            if (Config.DEBUG_MODE) console.log(`InputManager: Gamepad ${gp.index} set as active.`);
+        }
     }
 
     handleGamepadDisconnected(event) {
+        const index = event.gamepad.index;
         if (Config.DEBUG_MODE) {
-            console.log(`InputManager: Gamepad disconnected from index ${event.gamepad.index}: ${event.gamepad.id}`);
+            console.log(`InputManager: Gamepad disconnected from index ${index}: ${event.gamepad.id}`);
         }
-        delete this.gamepads[event.gamepad.index];
+        delete this.gamepads[index];
+        delete this.gamepadButtonState[index];
+        delete this.prevGamepadButtonState[index];
+
+        // If the disconnected gamepad was the active one, try to find another
+        if (this.activeGamepadIndex === index) {
+            this.activeGamepadIndex = null;
+            // Find the next available gamepad index
+            const nextAvailableIndex = Object.keys(this.gamepads)[0]; // Get the first key (index)
+            if (nextAvailableIndex !== undefined) {
+                this.activeGamepadIndex = parseInt(nextAvailableIndex, 10);
+                if (Config.DEBUG_MODE) console.log(`InputManager: Switched active gamepad to index ${this.activeGamepadIndex}.`);
+            } else {
+                if (Config.DEBUG_MODE) console.log(`InputManager: No active gamepad.`);
+                // Reset controls when no gamepad is active?
+                this.controls = { roll: 0, pitch: 0, yaw: 0, thrust: 0 };
+            }
+        }
     }
 
-
     getControls() {
-        return { ...this.controls }; // Return a copy
+        // Apply clamping just before returning, ensures values are always valid
+        const finalControls = {
+            roll: Math.max(-1, Math.min(1, this.controls.roll)),
+            pitch: Math.max(-1, Math.min(1, this.controls.pitch)),
+            yaw: Math.max(-1, Math.min(1, this.controls.yaw)),
+            thrust: Math.max(0, Math.min(1, this.controls.thrust))
+        };
+        return finalControls; // Return a copy of potentially clamped values
     }
 
     dispose() {
         window.removeEventListener('keydown', this._boundKeyDown);
         window.removeEventListener('keyup', this._boundKeyUp);
-        window.removeEventListener('gamepadconnected', this._boundGamepadConnected);
-        window.removeEventListener('gamepaddisconnected', this._boundGamepadDisconnected);
+        if (Config.GAMEPAD_ENABLED) {
+            window.removeEventListener('gamepadconnected', this._boundGamepadConnected);
+            window.removeEventListener('gamepaddisconnected', this._boundGamepadDisconnected);
+        }
         if (Config.DEBUG_MODE) {
             console.log('InputManager: Event listeners removed.');
         }

@@ -85,13 +85,12 @@ class Drone {
 
         const body = new CANNON.Body({
             mass: Config.DRONE_MASS,
+            // Use the provided initialPosition Vec3
             position: new CANNON.Vec3(initialPosition.x, initialPosition.y, initialPosition.z),
             shape: bodyShape,
             material: this.engine.physicsEngine.getMaterial('default'),
-
-            // --- Apply Damping from Config ---
             linearDamping: Config.DRONE_PHYSICS_SETTINGS.linearDamping,
-            angularDamping: Config.DRONE_PHYSICS_SETTINGS.angularDamping, // Key for Phase 5 stability
+            angularDamping: Config.DRONE_PHYSICS_SETTINGS.angularDamping,
         });
 
         body.updateMassProperties(); // Calculate inertia
@@ -104,41 +103,36 @@ class Drone {
         return body;
     }
 
-    // --- Make initialize asynchronous ---
-    async initialize(initialPosition = { x: 0, y: 1, z: 0 }) {
-        // --- Create Visual Model (now async) ---
-        this.visual = await this.createVisualModel(); // Await the GLTF loading/processing
+    async initialize(initialPosition = Config.DRONE_START_POSITION) { // Default to config
+        // Create Visual Model
+        this.visual = await this.createVisualModel();
+        // Set visual position directly from initialPosition
         this.visual.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
-        this.engine.renderer.addObject(this.visual); // Add visual group to scene
+        this.engine.renderer.addObject(this.visual);
 
-        // --- Create Physics Body (sync) ---
-        console.log("Drone Initializing: Creating physics body...");
-        this.physicsBody = this.createPhysicsBody(initialPosition);
+        // Create Physics Body - Pass initialPosition
+        console.log("Drone Initializing: Creating physics body at", initialPosition);
+        this.physicsBody = this.createPhysicsBody(initialPosition); // Pass position here
 
         if (this.physicsBody) {
             console.log("Drone Initializing: Physics body created successfully, adding to engine.");
-            this.engine.physicsEngine.addBody(this.physicsBody, this.visual); // Link physics to visual group
+            this.engine.physicsEngine.addBody(this.physicsBody, this.visual);
         } else {
-            console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             console.error("Drone ERROR: Failed to create physics body.");
-            console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         }
 
-        // --- Create and Attach FPV Camera ---
-        // Position might need adjustment based on the loaded model's origin/scale
+        // Create and Attach FPV Camera
+        // ... (rest of camera setup) ...
         this.fpvCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        // Adjust position relative to the visual model's coordinate system
-        this.fpvCamera.position.set(0, 0.05, 0.1); // EXAMPLE: Slightly up and forward (TUNE THIS based on your model!)
-        this.fpvCamera.rotation.set(0, 0, 0); // Level relative to drone body
+        this.fpvCamera.position.set(0, 0.05, 0.1);
+        this.fpvCamera.rotation.set(0, 0, 0);
         this.fpvCamera.name = "FPVCamera";
-        this.visual.add(this.fpvCamera); // Attach camera to the GLTF scene group
+        this.visual.add(this.fpvCamera);
 
-        // --- Find Propellers in Model (Optional for animation) ---
-        this.findPropsInModel(); // Implement this helper if needed
-
+        this.findPropsInModel();
 
         if (Config.DEBUG_MODE && this.physicsBody) {
-            console.log(`Drone: Async Initialization complete. Visual Model (GLTF) & Physics Body (ID: ${this.physicsBody.id}) linked.`);
+            console.log(`Drone: Async Initialization complete at specified position.`);
         } else if(Config.DEBUG_MODE){
             console.log('Drone: Async Initialization FAILED or incomplete.');
         }
@@ -278,25 +272,26 @@ class Drone {
         };
     }
 
-    reset(position = { x: 0, y: 1, z: 0 }) {
+    reset(position = Config.DRONE_START_POSITION) { // Default to config
         if (!this.physicsBody || !this.visual) return;
 
-        this.disarm(); // Disarm before resetting physics
+        this.disarm();
 
-        // Reset Physics State
+        // Reset Physics State using the provided or config position
         this.physicsBody.position.set(position.x, position.y, position.z);
         this.physicsBody.velocity.set(0, 0, 0);
         this.physicsBody.angularVelocity.set(0, 0, 0);
         this.physicsBody.quaternion.setFromEuler(0, 0, 0);
         this.physicsBody.force.set(0, 0, 0);
         this.physicsBody.torque.set(0, 0, 0);
-        this.physicsBody.wakeUp();
+        this.physicsBody.wakeUp(); // Ensure body is awake after reset
 
-        // Reset Visual State Immediately to match physics
+        // Reset Visual State Immediately
+        // Use copy for Vec3 and Quaternion
         this.visual.position.copy(this.physicsBody.position);
         this.visual.quaternion.copy(this.physicsBody.quaternion);
 
-        if (Config.DEBUG_MODE) console.log("Drone Reset");
+        if (Config.DEBUG_MODE) console.log(`Drone Reset to position: (${position.x}, ${position.y}, ${position.z})`);
     }
 }
 
