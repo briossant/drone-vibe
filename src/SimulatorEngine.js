@@ -1,5 +1,5 @@
 // src/SimulatorEngine.js
-import { getCurrentConfig } from './ConfigManager.js'; // Use the helper
+import { getCurrentConfig } from './ConfigManager.js';
 import Renderer from './Renderer.js';
 import PhysicsEngine from './PhysicsEngine.js';
 import InputManager from './InputManager.js';
@@ -8,21 +8,20 @@ import Drone from './Drone.js';
 import World from './World.js';
 import { clamp } from './Utils.js';
 import AssetLoader from './AssetLoader.js';
-import * as CANNON from 'cannon-es';
+import * as CANNON from 'cannon-es'; // Keep CANNON import for Vec3
 
 
 class SimulatorEngine {
     constructor() {
-        // Get initial config - modules might need it in their constructors too
-        const config = getCurrentConfig();
+        const config = getCurrentConfig(); // Get config early
 
         this.canvas = document.getElementById('webgl-canvas');
         if (!this.canvas) {
             throw new Error("Fatal Error: Canvas element #webgl-canvas not found.");
         }
 
-        // --- Core Modules ---
-        this.assetLoader = AssetLoader;
+        // Core Modules
+        this.assetLoader = AssetLoader; // Assuming AssetLoader is a singleton instance
         this.renderer = new Renderer(this);
         this.physicsEngine = new PhysicsEngine(this);
         this.inputManager = new InputManager(this);
@@ -31,13 +30,13 @@ class SimulatorEngine {
         this.drone = new Drone(this);
 
         // Simulation State
-        this.isRunning = false; // True if loop is requested
-        this.isPaused = false;  // True if simulation logic should be skipped
+        this.isRunning = false;
+        this.isPaused = false;
         this.lastTime = 0;
-        this.simulationState = {};
-        this.animationFrameId = null; // Store request ID for cancellation
+        this.simulationState = {}; // Store current state for UI etc.
+        this.animationFrameId = null;
 
-        this._boundLoop = this.loop.bind(this);
+        this._boundLoop = this.loop.bind(this); // Bind loop once
 
         if (config.DEBUG_MODE) {
             console.log('SimulatorEngine: Initialized');
@@ -45,55 +44,46 @@ class SimulatorEngine {
     }
 
     async initialize() {
-        console.log("DEBUG: SimulatorEngine.initialize() START"); // ADD THIS
-
         const config = getCurrentConfig();
         if (config.DEBUG_MODE) console.log('SimulatorEngine: Initializing modules...');
 
-        // Initialize modules (they should use getCurrentConfig internally if needed)
+        // Module Initialization (Order matters)
         this.renderer.initialize(this.canvas);
         this.physicsEngine.initialize();
         this.inputManager.initialize();
         this.uiManager.initialize();
-        console.log("DEBUG: About to initialize World..."); // ADD THIS
         await this.world.initialize();
-        console.log("DEBUG: World initialized."); // ADD THIS
-        console.log("DEBUG: About to initialize Drone..."); // ADD THIS
-        await this.drone.initialize();
-        console.log("DEBUG: Drone initialized."); // ADD THIS
+        await this.drone.initialize(); // Ensure drone is initialized after world/physics
 
-        // Set initial camera
+        // Set initial camera (should be FPV cam if drone initialized correctly)
         if (this.drone.FPVCamera) {
             this.renderer.setActiveCamera(this.drone.FPVCamera);
             if (config.DEBUG_MODE) console.log("SimulatorEngine: Initial active camera set to FPV camera.");
         } else if (this.renderer.debugCamera) {
             this.renderer.setActiveCamera(this.renderer.debugCamera);
-            console.warn("SimulatorEngine: FPV Camera not found! Using DEBUG camera.");
+            console.warn("SimulatorEngine: FPV Camera not found after initialization! Using DEBUG camera.");
         } else {
-            console.error("SimulatorEngine FATAL: No usable camera found!");
-            throw new Error("No camera available."); // Stop initialization
+            console.error("SimulatorEngine FATAL: No usable camera found post-initialization!");
+            throw new Error("No camera available.");
         }
 
-        this.setupDebugControls(); // Keep debug controls
+        // REMOVED setupDebugControls() - Let main.js handle Esc, menu handle Reset etc.
 
         if (config.DEBUG_MODE) console.log('SimulatorEngine: Initialization complete.');
-        // Note: Applying initial settings is now done in main.js *after* initialize() completes
-        console.log("DEBUG: SimulatorEngine.initialize() END"); // ADD THIS
+        // Applying initial settings is now done in main.js *after* this completes
     }
 
     start() {
         const config = getCurrentConfig();
         if (this.isRunning) return;
         this.isRunning = true;
-        this.isPaused = false; // Ensure not paused on start
+        this.isPaused = false; // Ensure not paused
         this.lastTime = performance.now();
         if (config.DEBUG_MODE) console.log('SimulatorEngine: Starting main loop...');
-        // Start the loop
         this.animationFrameId = requestAnimationFrame(this._boundLoop);
     }
 
     stop() {
-        // Stops the loop entirely (e.g., for returning to main menu)
         const config = getCurrentConfig();
         if (!this.isRunning) return;
         this.isRunning = false;
@@ -105,12 +95,11 @@ class SimulatorEngine {
     }
 
     pause() {
-        // Pauses simulation logic, but the RAF loop might continue for rendering menus
         const config = getCurrentConfig();
+        // Pause simulation logic. Rendering continues in the loop if needed (for menus).
         if (!this.isRunning || this.isPaused) return;
         this.isPaused = true;
         if (config.DEBUG_MODE) console.log('SimulatorEngine: Paused simulation logic.');
-        // We don't stop the RAF loop here, as the pause menu needs rendering
     }
 
     resume() {
@@ -119,145 +108,121 @@ class SimulatorEngine {
         this.isPaused = false;
         this.lastTime = performance.now(); // Reset time to avoid large deltaTime jump
         if (config.DEBUG_MODE) console.log('SimulatorEngine: Resumed simulation logic.');
-        // Re-request pointer lock (best done via user interaction, e.g. canvas click)
+        // Requesting pointer lock is handled by main.js based on user interaction (click).
     }
 
     restartFlight() {
         const config = getCurrentConfig();
         if (this.drone) {
             if (config.DEBUG_MODE) console.log("SimulatorEngine: Restarting flight...");
-            // Use the configured start position for reset
+            // Use the configured start position (now fetched via ConfigManager)
             const startPos = config.DRONE_START_POSITION;
-            this.drone.reset(startPos ? new CANNON.Vec3(startPos.x, startPos.y, startPos.z) : undefined);
+            const resetVec = startPos ? new CANNON.Vec3(startPos.x, startPos.y, startPos.z) : new CANNON.Vec3(0, 1, 0); // Default fallback
+            this.drone.reset(resetVec); // Pass Vec3 directly
+            // Ensure drone is awake after reset
+            this.drone.physicsBody?.wakeUp();
         }
     }
 
     loop(currentTime) {
-        if (!this.isRunning) return; // Exit if stop() was called
+        if (!this.isRunning) return;
 
-        // Request next frame immediately
         this.animationFrameId = requestAnimationFrame(this._boundLoop);
 
-        // Calculate deltaTime
         const deltaTime = (currentTime - this.lastTime) * 0.001;
         this.lastTime = currentTime;
-        // Clamp deltaTime to prevent large jumps, especially after pausing/resuming
-        const clampedDeltaTime = clamp(deltaTime, 0, 0.1); // Increase max clamp slightly?
+        const clampedDeltaTime = clamp(deltaTime, 0, 0.1); // Clamp to prevent physics issues
 
         // --- Main Update Cycle (Runs only if NOT paused) ---
         if (!this.isPaused) {
-            // 1. Handle Input (Flight controls)
-            // InputManager should ideally check if paused and ignore flight inputs
-            this.inputManager.update(this.isPaused); // Pass paused state
+            // 1. Handle Input (polls internally, considers pause state)
+            this.inputManager.update(this.isPaused); // Inform InputManager about pause state
             const controls = this.inputManager.getControls();
 
-            // 2. Update Drone Logic (FC)
-            this.drone.update(clampedDeltaTime, controls);
+            // 2. Update Drone Logic (Flight Controller)
+            this.drone.update(clampedDeltaTime, controls); // Apply forces/torques
 
             // 3. Step Physics Engine
-            this.physicsEngine.update(clampedDeltaTime);
+            this.physicsEngine.update(clampedDeltaTime); // Simulate physics step
 
-            // 4. Synchronize Visuals
-            this.physicsEngine.syncVisuals();
+            // 4. Synchronize Visuals with Physics state
+            this.physicsEngine.syncVisuals(); // Update THREE objects from CANNON bodies
 
-            // 5. Update World
+            // 5. Update World (e.g., animations, dynamic elements)
             this.world.update(clampedDeltaTime);
 
-            // 6. Prepare State for UI
+            // 6. Prepare State for UI/OSD
+            // Store potentially needed info in one place for UI
             this.simulationState.drone = this.drone.getState();
-            this.simulationState.controls = controls;
+            this.simulationState.controls = controls; // Current controls state
 
             // 7. Update UI (OSD)
-            this.uiManager.update(this.simulationState); // <<< CORRECTED LINE
+            // Ensure UIManager uses the simulationState object correctly
+            this.uiManager.update(this.simulationState);
+
         }
         // --- End Main Update Cycle ---
 
-
         // 8. Render Scene (Always render, even when paused, for menu visibility)
-        // Renderer needs to handle potential active camera changes if menus overlay 3D space later
         this.renderer.render();
     }
 
-    // Add basic applyConfiguration stubs to modules (or ensure they exist)
-    // These will be filled in Phase 11
-
-    setupDebugControls() {
+    // --- Simplified toggleArmDisarm ---
+    // Primarily for potential future use or direct calls, not debug keys anymore
+    toggleArmDisarm() {
         const config = getCurrentConfig();
-        // ... (Keep R for reset, C for camera switch - Enter for Arm/Disarm might conflict with menu interactions)
-        window.addEventListener('keydown', (event) => {
-            if (this.isPaused) return; // Don't process debug keys if paused
-
-            if (event.key.toLowerCase() === 'r') {
-                this.restartFlight();
-            }
-            if (event.key.toLowerCase() === 'c') {
-                if (this.renderer.activeCamera === this.drone.FPVCamera) {
-                    this.renderer.setActiveCamera(this.renderer.debugCamera);
-                } else {
-                    this.renderer.setActiveCamera(this.drone.FPVCamera);
-                }
-            }
-            // Maybe change arm/disarm key? Or handle via InputManager gamepad logic primarily
-            if (event.key === 'Enter') { // Example: Keep Enter for now
-                this.toggleArmDisarm();
-            }
-        });
-        if (config.DEBUG_MODE) console.log("Debug Controls Initialized: R=Reset, C=Switch Camera, Enter=Arm/Disarm (when not paused).");
-    }
-
-    toggleArmDisarm() { // Keep helper
-        // Get config for debug logging
-        const config = getCurrentConfig();
-
-        // Log entry point and current state
-        if (config.DEBUG_MODE) {
-            console.log("toggleArmDisarm called. Drone exists:", !!this.drone, "Current armed state:", this.drone?.armed);
-        }
-
-        // Check if the drone object exists
         if (this.drone) {
-            // Check the current armed state
             if (this.drone.armed) {
-                // If armed, disarm it
-                if (config.DEBUG_MODE) console.log("Debug: Disarming Drone...");
-                this.drone.disarm(); // Call the drone's disarm method
+                this.drone.disarm();
             } else {
-                // If disarmed, arm it
-                if (config.DEBUG_MODE) console.log("Debug: Arming Drone...");
-                this.drone.arm(); // Call the drone's arm method
+                this.drone.arm();
             }
         } else {
-            // Log a warning if the drone object hasn't been initialized yet
-            console.warn("Debug: Cannot arm/disarm, drone not initialized.");
+            if (config.DEBUG_MODE) console.warn("Cannot toggle arm state: Drone not initialized.");
         }
     }
 
-    // --- NEW: Cleanup Method ---
+
+    // --- Cleanup Method ---
     dispose() {
         const config = getCurrentConfig();
-        this.stop(); // Ensure loop is stopped
+        if (config.DEBUG_MODE) console.log('SimulatorEngine: Disposing resources...');
+        this.stop(); // Ensure animation loop is stopped
+
+        // Dispose modules in reverse order of initialization (roughly)
         this.inputManager?.dispose();
-        this.renderer?.dispose();
-        // Add cleanup for physics, world, drone if necessary (remove bodies, geometries etc)
-        if (this.physicsEngine && this.physicsEngine.world) {
-            // Remove all bodies added through the map
-            this.physicsEngine.bodyMap.forEach((entry, body) => {
+        this.renderer?.dispose(); // Renderer dispose handles canvas listeners etc.
+
+        // Clear physics world
+        if (this.physicsEngine?.world) {
+            // Remove bodies tracked by the engine
+            this.physicsEngine.bodyMap?.forEach((entry, body) => {
                 this.physicsEngine.world.removeBody(body);
             });
-            this.physicsEngine.bodyMap.clear();
+            this.physicsEngine.bodyMap?.clear();
+            // Further cannon-es cleanup might be needed if using constraints etc.
         }
-        if (this.renderer && this.renderer.scene) {
-            // Basic scene cleanup (more thorough might be needed)
+
+        // Clear Three.js scene
+        if (this.renderer?.scene) {
             while(this.renderer.scene.children.length > 0){
-                this.renderer.scene.remove(this.renderer.scene.children[0]);
+                const object = this.renderer.scene.children[0];
+                this.renderer.scene.remove(object);
+                // If applicable, dispose geometry/material/textures of removed objects
+                // This requires a more thorough traversal (see Three.js docs)
             }
         }
 
+        // Reset references
+        this.drone = null;
+        this.world = null;
+        this.uiManager = null;
+        this.inputManager = null;
+        this.physicsEngine = null;
+        this.renderer = null;
 
-        // Remove global listeners added by this class (debug controls)
-        // Note: This requires storing the listener function reference if added anonymously
 
-        if (config.DEBUG_MODE) console.log('SimulatorEngine: Disposed resources.');
+        if (config.DEBUG_MODE) console.log('SimulatorEngine: Disposal complete.');
     }
 }
 

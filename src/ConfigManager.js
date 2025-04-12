@@ -1,6 +1,6 @@
 // src/ConfigManager.js
 import defaultConfig from './defaultConfig.js';
-import Config from './Config.js'; // Import original config for non-user-configurable parts
+import Config from './Config.js';
 
 const LOCAL_STORAGE_KEY = 'droneSimUserConfig';
 
@@ -10,7 +10,7 @@ class ConfigManager {
         this.mergedConfig = {}; // Holds the final config (defaults overridden by user)
         this.loadConfig(); // Load immediately on instantiation
 
-        if (Config.DEBUG_MODE) { // Use original Config for debug flag
+        if (this.mergedConfig.DEBUG_MODE) {
             console.log("ConfigManager: Initialized.");
             console.log("ConfigManager: Loaded user config:", this.userConfig);
             // console.log("ConfigManager: Merged config:", this.mergedConfig); // Can be large
@@ -37,7 +37,7 @@ class ConfigManager {
         try {
             // Only save the user overrides, not the full merged config
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(this.userConfig));
-            if (Config.DEBUG_MODE) {
+            if (this.mergedConfig.DEBUG_MODE) {
                 console.log("ConfigManager: User config saved to localStorage.");
             }
         } catch (error) {
@@ -46,7 +46,6 @@ class ConfigManager {
     }
 
     // Deep merge user config onto defaults
-    // NOTE: This is a simple deep merge, might need a more robust library for complex cases
     _mergeConfigs() {
         // Start with a deep copy of defaults
         this.mergedConfig = JSON.parse(JSON.stringify(defaultConfig));
@@ -59,10 +58,8 @@ class ConfigManager {
 
                     if (sourceVal !== null && typeof sourceVal === 'object' && !Array.isArray(sourceVal) &&
                         targetVal !== null && typeof targetVal === 'object' && !Array.isArray(targetVal)) {
-                        // Recurse for nested objects
                         merge(targetVal, sourceVal);
-                    } else {
-                        // Overwrite or add primitive values/arrays
+                    } else if (sourceVal !== undefined) { // Only overwrite if source has a value
                         target[key] = sourceVal;
                     }
                 }
@@ -71,77 +68,65 @@ class ConfigManager {
 
         merge(this.mergedConfig, this.userConfig);
 
-        // Also merge in non-user-configurable values from the original Config.js
-        // (like DEBUG_MODE, PHYSICS_TIMESTEP etc.) - be selective
+        // Also merge in essential non-user-configurable values from the original Config.js
+        // These should NOT be overrideable by userConfig saving/loading defaults
         this.mergedConfig.DEBUG_MODE = Config.DEBUG_MODE;
         this.mergedConfig.PHYSICS_TIMESTEP = Config.PHYSICS_TIMESTEP;
-        this.mergedConfig.GRAVITY = Config.GRAVITY; // Keep GRAVITY fixed for now unless explicitly made user-configurable
+        this.mergedConfig.GRAVITY = Config.GRAVITY;
         this.mergedConfig.DRONE_START_POSITION = Config.DRONE_START_POSITION;
-        // Add any other essential non-user-config values
+        // Add any other fixed values needed globally from Config.js
 
         // Maybe log the final merged config if needed for debugging
-        // if (Config.DEBUG_MODE) console.log("Final Merged Config:", this.mergedConfig);
+        // if (this.mergedConfig.DEBUG_MODE) console.log("Final Merged Config:", this.mergedConfig);
     }
 
-    // Get the currently active configuration
     getConfig() {
         return this.mergedConfig;
     }
 
-    // Update a specific setting in the user config (in memory)
-    // This should be called by the UI elements in Phase 11
     updateUserSetting(keyPath, value) {
-        // keyPath could be a dot notation string like "GAMEPAD_SENSITIVITY.pitch"
         const keys = keyPath.split('.');
         let current = this.userConfig;
         for (let i = 0; i < keys.length - 1; i++) {
             const key = keys[i];
-            if (current[key] === undefined || typeof current[key] !== 'object') {
-                current[key] = {}; // Create nested object if it doesn't exist
+            if (current[key] === undefined || typeof current[key] !== 'object' || current[key] === null) {
+                current[key] = {};
             }
             current = current[key];
         }
         current[keys[keys.length - 1]] = value;
 
-        // Re-merge after updating user config in memory
-        this._mergeConfigs();
+        this._mergeConfigs(); // Re-merge after updating user config in memory
 
-        if (Config.DEBUG_MODE) {
-            // console.log(`ConfigManager: User setting updated - ${keyPath}:`, value);
+        if (this.mergedConfig.DEBUG_MODE) {
+            console.log(`ConfigManager: User setting updated in memory - ${keyPath}:`, value);
         }
     }
 
     applySettingsToEngine(engine) {
         if (!engine) return;
-        const config = this.getConfig(); // Get config once
+        const config = this.getConfig();
         if (config.DEBUG_MODE) console.log("ConfigManager: Applying settings to engine modules...");
 
-        try { // Add try...catch
-            console.log("DEBUG: Applying to Renderer..."); // ADD
+        try {
+            // Ensure modules are ready before applying
             engine.renderer?.applyConfiguration(config);
-            console.log("DEBUG: Applying to PhysicsEngine..."); // ADD
             engine.physicsEngine?.applyConfiguration(config);
-            console.log("DEBUG: Applying to InputManager..."); // ADD
             engine.inputManager?.applyConfiguration(config);
-            console.log("DEBUG: Applying to Drone..."); // ADD
             engine.drone?.applyConfiguration(config);
-            console.log("DEBUG: Applying to UIManager..."); // ADD
             engine.uiManager?.applyConfiguration(config);
-            console.log("DEBUG: Finished applying settings to modules."); // ADD
+            // Add engine.world?.applyConfiguration(config); if needed
+            if (config.DEBUG_MODE) console.log("ConfigManager: Finished applying settings to modules.");
         } catch (error) {
-            console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             console.error("ERROR during applySettingsToEngine:", error);
-            console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-            throw error; // Re-throw to be caught by main.js
+            // Potentially re-throw or handle more gracefully
         }
     }
 }
 
-// Export a single instance (Singleton pattern)
 const instance = new ConfigManager();
 export default instance;
 
-// Helper function to easily access the current config from anywhere
 export function getCurrentConfig() {
     return instance.getConfig();
 }
