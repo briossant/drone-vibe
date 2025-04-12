@@ -41,8 +41,8 @@ const defaultConfig = {
     GAMEPAD_BUTTON_MAPPING: {
         // Common indices: Xbox(A=0,B=1,X=2,Y=3,LB=4,RB=5,LT=6,RT=7,Back=8,Start=9,LStick=10,RStick=11)
         // Common indices: PS(X=0,O=1,Square=2,Tri=3,L1=4,R1=5,L2=6,R2=7,Share=8,Options=9,L3=10,R3=11)
-        armDisarm: 9,
-        reset: 8,
+        armDisarm: 5,
+        reset: 4,
     },
 
     // Flight Controller Settings

@@ -115,12 +115,38 @@ class InputManager {
     // Keyboard event handlers
     handleKeyDown(event) {
         this.keys[event.key] = true;
-        // Prevent default for simulation keys, but NOT for system keys like Esc
+        const config = getCurrentConfig(); // Needed for debug check
+
+        // --- NEW: Handle Arm/Disarm and Reset Keys ---
+        // Arm/Disarm Key (Using 'Enter')
+        if (event.key === 'Enter') {
+            event.preventDefault(); // Prevent default Enter behavior (e.g., button click)
+            if (this.engine) { // Ensure engine exists
+                if (config.DEBUG_MODE) console.log("InputManager: Arm/Disarm key (Enter) pressed.");
+                this.engine.toggleArmDisarm(); // Call the engine method
+            }
+        }
+
+        // Reset Key (Using 'R')
+        // Check for both 'r' and 'R' to handle Caps Lock
+        if (event.key === 'r' || event.key === 'R') {
+            event.preventDefault(); // Prevent default 'r' behavior if any
+            if (this.engine) { // Ensure engine exists
+                if (config.DEBUG_MODE) console.log("InputManager: Reset key (R) pressed.");
+                this.engine.restartFlight(); // Call the engine method
+            }
+        }
+        // --- END NEW ---
+
+
+        // Prevent default for simulation flight keys
         const simKeys = ['w', 's', 'a', 'd', 'q', 'e', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift', 'Control', ' '];
         if (simKeys.includes(event.key) || simKeys.includes(event.key.toUpperCase())) {
             event.preventDefault();
         }
-        // Debug keys (R, C, Enter) are no longer handled here
+
+        // Original comment: Debug keys (R, C, Enter) are no longer handled here
+        // Now they are handled above again.
     }
 
     handleKeyUp(event) {
@@ -198,15 +224,28 @@ class InputManager {
         this.controls.thrust = thrustMapped; // Use the mapped 0-1 value
 
         // --- Poll Buttons (Store state for edge detection) ---
-        this.prevGamepadButtonState = { ...this.gamepadButtonState }; // Copy previous state
-        this.gamepadButtonState = {}; // Reset current state
+        // *** Modify Logging/State Update Section ***
+        const prevButtonStateForIndex = { ...(this.prevGamepadButtonState[this.activeGamepadIndex] || {}) }; // Get previous state safely
+        this.prevGamepadButtonState[this.activeGamepadIndex] = { ...(this.gamepadButtonState[this.activeGamepadIndex] || {}) }; // Copy current to previous safely
+        this.gamepadButtonState[this.activeGamepadIndex] = {}; // Reset current state for this index
+
         let buttonsChanged = false;
         gp.buttons.forEach((button, index) => {
-            this.gamepadButtonState[index] = button.pressed;
-            if(this.gamepadButtonState[index] !== this.prevGamepadButtonState[index]) {
+            const isPressed = button.pressed;
+            this.gamepadButtonState[this.activeGamepadIndex][index] = isPressed; // Store current pressed state
+
+            const wasPressed = prevButtonStateForIndex[index] === true; // Check previous state more explicitly
+
+            if (isPressed !== wasPressed) { // Check if state changed (press or release)
                 buttonsChanged = true;
+                // *** ADD LOGGING HERE ***
+                if (Config.DEBUG_MODE) {
+                    console.log(`InputManager.pollActiveGamepad: Button ${index} changed state. Pressed: ${isPressed}`);
+                }
+                // *** END LOGGING ***
             }
         });
+        // *** End Modified Section ***
 
         // Determine if significant input occurred (axis movement or button change)
         const significantAxisInput = Math.abs(rollInput) > 0 || Math.abs(pitchInput) > 0 || Math.abs(yawInput) > 0 || Math.abs(thrustMapped) > 0.01; // Allow small thrust values
