@@ -23,28 +23,32 @@ class Renderer {
             return;
         }
 
-        // --- Scene ---
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x87CEEB); // Sky blue background
-        // Optional: Add fog for depth perception later
-        // this.scene.fog = new THREE.Fog(0x87CEEB, 10, 100);
+        this.scene.background = new THREE.Color(0x87CEEB); // Initial background, skybox will cover it
 
         // --- Renderer ---
-        this.renderer = new THREE.WebGLRenderer({
+        this.renderer = new THREE.WebGLRenderer({ /* ... options ... */
             canvas: canvas,
             antialias: true,
-            logarithmicDepthBuffer: false, // Set to true only if z-fighting issues occur with large scenes
+            logarithmicDepthBuffer: false,
         });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        // Enable shadows (will be configured in Phase 6 by World/Lights)
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
 
-        // --- Debug Camera ---
+        // --- Shadow Configuration ---
+        this.renderer.shadowMap.enabled = true; // Ensure enabled
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Good balance
+
+        // Optional: Adjust output encoding for better color (especially with PBR materials in GLTF)
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace; // Correct colorspace
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping; // Nice filmic look
+        this.renderer.toneMappingExposure = 1.0; // Adjust exposure if needed
+
+
+        // ... Debug Camera, OrbitControls setup ...
         this.debugCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.debugCamera.position.set(3, 3, 5); // Place camera back and up
-        this.debugCamera.lookAt(0, 0, 0);       // Look at the scene origin
+        this.debugCamera.position.set(3, 3, 5);
+        this.debugCamera.lookAt(0, 0, 0);
 
         // --- Orbit Controls ---
         this.controls = new OrbitControls(this.debugCamera, canvas); // Use debug camera

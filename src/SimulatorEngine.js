@@ -7,6 +7,7 @@ import UIManager from './UIManager.js';
 import Drone from './Drone.js';
 import World from './World.js';
 import { clamp } from './Utils.js'; // Import utilities
+import AssetLoader from './AssetLoader.js'; // Import the loader instance
 
 class SimulatorEngine {
     constructor() {
@@ -15,20 +16,20 @@ class SimulatorEngine {
             throw new Error("Fatal Error: Canvas element #webgl-canvas not found.");
         }
 
-        // Core Modules
+        // --- Core Modules ---
+        this.assetLoader = AssetLoader; // Store reference to the loader instance
         this.renderer = new Renderer(this);
         this.physicsEngine = new PhysicsEngine(this);
         this.inputManager = new InputManager(this);
         this.uiManager = new UIManager(this);
         this.world = new World(this);
-        this.drone = new Drone(this); // The player's drone
+        this.drone = new Drone(this);
 
         // Simulation State
         this.isRunning = false;
         this.lastTime = 0;
-        this.simulationState = {}; // Shared state object for UI etc.
+        this.simulationState = {};
 
-        // Bind loop method to maintain 'this' context
         this._boundLoop = this.loop.bind(this);
 
         if (Config.DEBUG_MODE) {
@@ -36,38 +37,41 @@ class SimulatorEngine {
         }
     }
 
-    initialize() {
+    // --- Make initialize asynchronous ---
+    async initialize() {
         if (Config.DEBUG_MODE) console.log('SimulatorEngine: Initializing modules...');
 
-        // Initialize core components FIRST
-        this.renderer.initialize(this.canvas); // Renderer creates debug cam and controls
+        // Initialize components that DON'T depend on loaded assets first
+        this.renderer.initialize(this.canvas);
         this.physicsEngine.initialize();
         this.inputManager.initialize();
-        this.uiManager.initialize();
+        this.uiManager.initialize(); // OSD elements are created here
 
-        // Initialize world content (adds ground mesh, lights to renderer)
-        this.world.initialize();
+        // --- Initialize World (uses assets - skybox) ---
+        // World initialization might load things itself or rely on preloaded assets
+        await this.world.initialize(); // Make world.initialize async if needed
 
-        // Initialize the drone (creates visual, physics body, AND FPV cam)
-        this.drone.initialize({ x: 0, y: 1, z: 0 });
+        // --- Initialize Drone (uses assets - GLTF model) ---
+        // Drone initialization needs the loaded model
+        await this.drone.initialize({ x: 0, y: 1, z: 0 }); // Make drone.initialize async
 
-        // --- Set the INITIAL active camera ---
-        // For Phase 1, explicitly use the DEBUG camera defined in Renderer
+        // Set the INITIAL active camera (after drone/FPV cam is created)
         if (this.renderer.debugCamera) {
+            // Start with debug camera for easier setup/viewing
             this.renderer.setActiveCamera(this.renderer.debugCamera);
             console.log("SimulatorEngine: Initial active camera set to DEBUG camera.");
         } else {
             console.error("SimulatorEngine: Debug camera not found in Renderer!");
-            // Fallback to FPV cam if debug cam failed? Or throw error?
             if (this.drone.FPVCamera) {
                 this.renderer.setActiveCamera(this.drone.FPVCamera);
-                console.warn("SimulatorEngine: Using FPV camera as fallback.");
+                console.warn("SimulatorEngine: Using FPV camera as fallback initial camera.");
             } else {
                 console.error("SimulatorEngine: No usable camera found!");
             }
         }
 
-        this.setupDebugControls();
+
+        this.setupDebugControls(); // Setup controls after everything is ready
 
         if (Config.DEBUG_MODE) console.log('SimulatorEngine: Initialization complete.');
     }

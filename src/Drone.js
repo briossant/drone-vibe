@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import Config from './Config.js';
+import AssetLoader from './AssetLoader.js'; // Import loader instance
 
 // Reuse Vec3 instances for torque calculations to reduce garbage collection
 const localTorque = new CANNON.Vec3();
@@ -12,89 +13,65 @@ const euler = new THREE.Euler(); // Create once, reuse
 class Drone {
     constructor(engine) {
         this.engine = engine;
-        this.visual = null;         // THREE.Group
+        this.visual = null;         // THREE.Group - Will hold the loaded GLTF scene
         this.physicsBody = null;    // CANNON.Body
         this.fpvCamera = null;      // THREE.PerspectiveCamera
-        this.propellers = [];       // Array for propeller meshes later
+        this.propellers = [];       // We might need to find these in the loaded model later if we want to animate them
 
         this.armed = false;
-        this.flightMode = 'RATE'; // Placeholder
+        this.flightMode = 'RATE';
 
-        this.dimensions = Config.DRONE_DIMENSIONS; // Use dimensions from Config
+        this.dimensions = Config.DRONE_DIMENSIONS; // Still useful for physics body size
 
         if (Config.DEBUG_MODE) {
             console.log('Drone: Initialized');
         }
     }
 
-    // --- Factory Methods ---
-    createVisualModel() {
-        // ... (existing visual model creation remains largely the same) ...
-        // Ensure it uses this.dimensions from Config if you moved it there.
-        const group = new THREE.Group();
-        const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.6, metalness: 0.3 });
-        const armMaterial = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.7 });
-        const propMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, opacity: 0.8, transparent: true });
 
-        const d = this.dimensions;
+    // Replace procedural model with GLTF loading
+    async createVisualModel() {
+        const gltf = AssetLoader.getModel('drone'); // Get preloaded GLTF data
+        if (!gltf) {
+            console.error("Drone ERROR: Failed to get preloaded 'drone' GLTF model.");
+            // Create a fallback placeholder if loading failed?
+            const fallbackGeo = new THREE.BoxGeometry(this.dimensions.bodyWidth, this.dimensions.bodyHeight, this.dimensions.bodyDepth);
+            const fallbackMat = new THREE.MeshStandardMaterial({ color: 0xff00ff }); // Bright pink error indicator
+            const fallbackMesh = new THREE.Mesh(fallbackGeo, fallbackMat);
+            fallbackMesh.castShadow = true; // Still cast shadow
+            return fallbackMesh; // Return simple mesh instead of group
+        }
 
-        // Main Body
-        const bodyGeometry = new THREE.BoxGeometry(d.bodyWidth, d.bodyHeight, d.bodyDepth);
-        const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
-        bodyMesh.castShadow = true;
-        group.add(bodyMesh);
+        const modelScene = gltf.scene; // Get the main scene group from the GLTF
 
-        // Arms & Props (ensure relative positioning is correct)
-        const armGeometry = new THREE.BoxGeometry(d.armWidth, d.armWidth, d.armLength);
-        const armPositions = [ /* ... existing positions ... */
-            // Front-Right (assuming +Z is forward, +X is right)
-            { angle: -Math.PI / 4 }, // -45 deg
-            // Front-Left
-            { angle: -3 * Math.PI / 4 }, // -135 deg
-            // Back-Left
-            { angle: 3 * Math.PI / 4 }, // 135 deg
-            // Back-Right
-            { angle: Math.PI / 4 }, // 45 deg
-        ];
+        // --- Configure Shadows for Loaded Model ---
+        modelScene.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true; // Optional, depends if parts of drone shadow other parts
 
-        armPositions.forEach(posData => {
-            const armMesh = new THREE.Mesh(armGeometry, armMaterial);
-            const angle = posData.angle;
-            // Position arms radially from center
-            const radius = d.bodyWidth / 2 ; // Start from edge of body approx
-            const armEndX = radius * Math.cos(angle) + (d.armLength / 2) * Math.cos(angle);
-            const armEndZ = radius * Math.sin(angle) + (d.armLength / 2) * Math.sin(angle);
-
-            armMesh.position.set(armEndX / 2, 0, armEndZ/2); // Position center of arm
-            armMesh.rotation.y = angle + Math.PI / 2; // Rotate arm to point outwards
-
-
-            armMesh.castShadow = true;
-            group.add(armMesh); // Add ARM to the main drone group
-
-            // --- Propeller Creation and Placement ---
-            const propGeometry = new THREE.CylinderGeometry(d.propDiameter / 2, d.propDiameter / 2, 0.01, 16);
-            const propMesh = new THREE.Mesh(propGeometry, propMaterial);
-
-            // Position prop at the end of the arm (relative to arm's origin which is now offset)
-            propMesh.position.set(0, d.armWidth / 2 + 0.01, d.armLength / 2); // Place slightly above arm, at its end (local Z)
-
-            propMesh.castShadow = true;
-            armMesh.add(propMesh); // Add prop to arm
-            this.propellers.push(propMesh);
+                // Optional: Ensure materials are suitable for lighting/shadows
+                child.material.metalness = Math.min(child.material.metalness || 0, 0.8); // Tone down excessive metalness if needed
+                child.material.roughness = Math.max(child.material.roughness || 0, 0.2); // Ensure some roughness
+            }
         });
 
+        // Optional: Scale the model if it's not the right size
+        // const desiredRadius = Math.max(this.dimensions.bodyWidth, this.dimensions.bodyDepth) / 2 + this.dimensions.armLength;
+        // const boundingBox = new THREE.Box3().setFromObject(modelScene);
+        // const currentSize = boundingBox.getSize(new THREE.Vector3());
+        // const maxDim = Math.max(currentSize.x, currentSize.y, currentSize.z);
+        // const scale = (desiredRadius * 2) / maxDim; // Approximate scale based on radius
+        // modelScene.scale.set(scale, scale, scale);
+        // console.log("Drone Model Scaled by:", scale);
 
-        // Front Indicator
-        const frontIndicatorGeo = new THREE.ConeGeometry(0.02, 0.05, 8);
-        const frontIndicatorMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-        const frontIndicatorMesh = new THREE.Mesh(frontIndicatorGeo, frontIndicatorMat);
-        frontIndicatorMesh.position.set(0, d.bodyHeight / 2, d.bodyDepth / 2 + 0.01); // Top-front
-        frontIndicatorMesh.rotation.x = Math.PI / 2; // Point forward
-        group.add(frontIndicatorMesh);
 
-        return group;
+        if (Config.DEBUG_MODE) console.log("Drone: Loaded GLTF model scene configured for shadows.");
+
+        // We return the scene object from the GLTF file
+        return modelScene;
     }
+
 
     createPhysicsBody(initialPosition) {
         if (!this.engine.physicsEngine.getMaterial) {
@@ -127,68 +104,79 @@ class Drone {
         return body;
     }
 
-
-    // --- Main Methods ---
-    initialize(initialPosition = { x: 0, y: 1, z: 0 }) {
-        this.visual = this.createVisualModel();
+    // --- Make initialize asynchronous ---
+    async initialize(initialPosition = { x: 0, y: 1, z: 0 }) {
+        // --- Create Visual Model (now async) ---
+        this.visual = await this.createVisualModel(); // Await the GLTF loading/processing
         this.visual.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
-        this.engine.renderer.addObject(this.visual);
+        this.engine.renderer.addObject(this.visual); // Add visual group to scene
 
+        // --- Create Physics Body (sync) ---
         console.log("Drone Initializing: Creating physics body...");
         this.physicsBody = this.createPhysicsBody(initialPosition);
 
         if (this.physicsBody) {
             console.log("Drone Initializing: Physics body created successfully, adding to engine.");
-            this.engine.physicsEngine.addBody(this.physicsBody, this.visual); // Link physics to visual
+            this.engine.physicsEngine.addBody(this.physicsBody, this.visual); // Link physics to visual group
         } else {
             console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             console.error("Drone ERROR: Failed to create physics body.");
             console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-            // Maybe throw an error or handle this more gracefully
         }
 
         // --- Create and Attach FPV Camera ---
-        this.fpvCamera = new THREE.PerspectiveCamera(
-            75, // Field of View
-            window.innerWidth / window.innerHeight, // Aspect Ratio
-            0.1, // Near plane
-            1000 // Far plane
-        );
-        // Position the camera slightly forward and up inside the drone body
-        this.fpvCamera.position.set(
-            0, // Centered horizontally
-            this.dimensions.bodyHeight * 0.2, // Slightly above center vertically
-            this.dimensions.bodyDepth * 0.3 // Forward from center (adjust Z position)
-        );
-        // Ensure the camera looks straight ahead relative to the drone
-        this.fpvCamera.rotation.set(0, 0, 0);
-        this.fpvCamera.name = "FPVCamera"; // Assign a name
-        this.visual.add(this.fpvCamera); // Attach camera to the visual group
+        // Position might need adjustment based on the loaded model's origin/scale
+        this.fpvCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        // Adjust position relative to the visual model's coordinate system
+        this.fpvCamera.position.set(0, 0.05, 0.1); // EXAMPLE: Slightly up and forward (TUNE THIS based on your model!)
+        this.fpvCamera.rotation.set(0, 0, 0); // Level relative to drone body
+        this.fpvCamera.name = "FPVCamera";
+        this.visual.add(this.fpvCamera); // Attach camera to the GLTF scene group
+
+        // --- Find Propellers in Model (Optional for animation) ---
+        this.findPropsInModel(); // Implement this helper if needed
+
 
         if (Config.DEBUG_MODE && this.physicsBody) {
-            console.log(`Drone: Initialization complete. Visual, Physics Body (ID: ${this.physicsBody.id}), and FPV Camera linked.`);
-        } else if (Config.DEBUG_MODE) {
-            console.log('Drone: Initialization potentially incomplete (Physics body error?).');
+            console.log(`Drone: Async Initialization complete. Visual Model (GLTF) & Physics Body (ID: ${this.physicsBody.id}) linked.`);
+        } else if(Config.DEBUG_MODE){
+            console.log('Drone: Async Initialization FAILED or incomplete.');
         }
     }
 
+    // Optional helper to find propeller meshes by name in the loaded model
+    findPropsInModel() {
+        this.propellers = [];
+        if (this.visual) {
+            // Example: Find objects named "Propeller_FL", "Propeller_FR", etc.
+            const propNames = ['Propeller_FR', 'Propeller_FL', 'Propeller_BR', 'Propeller_BL']; // Adjust names!
+            this.visual.traverse((child) => {
+                if (child.isMesh && propNames.includes(child.name)) {
+                    this.propellers.push(child);
+                    if (Config.DEBUG_MODE) console.log(`Drone: Found propeller mesh: ${child.name}`);
+                }
+            });
+        }
+        if (this.propellers.length !== 4 && Config.DEBUG_MODE) {
+            console.warn(`Drone: Expected 4 propellers, found ${this.propellers.length}. Check model names.`);
+        }
+    }
+
+    // --- Update method potentially animates found props ---
     update(deltaTime, controls) {
         if (!this.physicsBody) return;
 
-        // Apply flight controls (forces/torques)
         this.applyControls(deltaTime, controls);
 
-        // Propeller animation (visual only)
-        if (this.armed && this.physicsBody.mass > 0) {
-            const spinSpeed = controls.thrust * 50 + (this.armed ? 10 : 0); // Base spin when armed + thrust
+        // Propeller Animation - Use found props if available
+        if (this.armed && this.physicsBody.mass > 0 && this.propellers.length > 0) {
+            const spinSpeed = controls.thrust * 80 + (this.armed ? 15 : 0); // Faster spin maybe
             this.propellers.forEach(prop => {
-                // Assuming props are oriented flat, spin around their local Y axis
-                prop.rotation.y += spinSpeed * deltaTime;
+                prop.rotation.y += spinSpeed * deltaTime; // Assuming props spin around local Y
             });
-        } else if (!this.armed) {
+        } else if (!this.armed && this.propellers.length > 0) {
             this.propellers.forEach(prop => {
-                // Slow down props visually when disarmed
-                prop.rotation.y *= 0.95;
+                prop.rotation.y *= 0.90; // Slow down faster
             });
         }
     }
