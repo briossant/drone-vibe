@@ -143,3 +143,138 @@ html, body {
     max-height: 90vh; /* Limit height */
     overflow-y: auto; /* Add scroll if content exceeds height */
 }
+
+/* Styling for panels within the in-sim menu */
+.panel {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: rgba(70, 70, 70, 0.9);
+    border-radius: 5px;
+    border: 1px solid #555;
+    text-align: left;
+}
+
+.panel h3 {
+    margin-bottom: 20px; /* Increased margin */
+    text-align: center;
+    color: #ddd;
+}
+
+.panel h4 {
+    margin-top: 15px;
+    margin-bottom: 10px;
+    color: #bbb;
+    border-bottom: 1px solid #666;
+    padding-bottom: 5px;
+}
+
+/* Styling for individual setting rows */
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 5px 0;
+}
+
+.setting-item label {
+    flex-basis: 40%; /* Adjust as needed */
+    margin-right: 10px;
+    color: #ccc;
+    font-size: 0.95em;
+}
+
+.setting-item .control-container {
+    flex-basis: 60%; /* Adjust as needed */
+    display: flex;
+    align-items: center;
+}
+
+/* Style sliders */
+.setting-item input[type="range"] {
+    flex-grow: 1;
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+/* Style number inputs */
+.setting-item input[type="number"] {
+    width: 70px; /* Adjust width */
+    padding: 4px 6px;
+    background-color: #444;
+    border: 1px solid #666;
+    color: white;
+    border-radius: 3px;
+    text-align: right;
+}
+/* Hide spinner arrows on number inputs (optional) */
+.setting-item input[type="number"]::-webkit-outer-spin-button,
+.setting-item input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.setting-item input[type="number"] {
+    -moz-appearance: textfield; /* Firefox */
+}
+
+
+/* Style checkboxes */
+.setting-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    margin-left: auto; /* Push checkbox to the right within its container */
+}
+
+/* Style value display spans */
+.setting-item .value-display {
+    min-width: 40px; /* Ensure space for value */
+    text-align: right;
+    font-weight: bold;
+    color: #eee;
+    font-size: 0.9em;
+}
+
+
+.panel .back-button {
+    margin-top: 20px;
+    background-color: #777;
+    float: right;
+    width: auto;
+    padding: 8px 15px;
+}
+.panel .back-button:hover {
+    background-color: #666;
+}
+
+/* Apply/Save Button */
+#apply-save-button {
+    margin-top: 25px; /* Increased margin */
+    background-color: #f0ad4e;
+    width: calc(100% - 120px); /* Adjust width considering Back button */
+    float: left;
+    margin-right: 10px;
+}
+#apply-save-button:hover {
+    background-color: #ec971f;
+}
+
+
+/* Ensure panel content doesn't overflow menu width */
+#in-sim-menu .menu-content {
+    max-width: 550px; /* Adjust width if needed */
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* Clear floats for buttons at the bottom */
+#settings-panel::after, #controls-panel::after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+/* NEW: Hide main pause buttons when a panel is active */
+#pause-main-options.hidden {
+    display: none;
+}

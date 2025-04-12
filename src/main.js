@@ -19,15 +19,20 @@ const loadingIndicatorElement = document.getElementById('loading-indicator');
 const flyButton = document.getElementById('fly-button');
 const canvasElement = document.getElementById('webgl-canvas');
 const osdElement = document.getElementById('osd');
-const inSimMenuElement = document.getElementById('in-sim-menu');
 const resumeButton = document.getElementById('resume-button');
 const restartButton = document.getElementById('restart-button');
 const mainMenuButton = document.getElementById('main-menu-button');
-const applySaveButton = document.getElementById('apply-save-button');
+const inSimMenuElement = document.getElementById('in-sim-menu');
+const pauseMainOptions = document.getElementById('pause-main-options'); // Container for main pause buttons
 const settingsPanelButton = document.getElementById('settings-panel-button');
 const controlsPanelButton = document.getElementById('controls-panel-button');
 const settingsPanel = document.getElementById('settings-panel');
 const controlsPanel = document.getElementById('controls-panel');
+const flySettingsContent = document.getElementById('fly-settings-content'); // NEW
+const physicsSettingsContent = document.getElementById('physics-settings-content'); // NEW
+const gamepadSettingsContent = document.getElementById('gamepad-settings-content'); // NEW
+const keyboardSettingsDisplay = document.getElementById('keyboard-settings-display'); // NEW
+const applySaveButton = document.getElementById('apply-save-button');
 const backButtons = document.querySelectorAll('.panel .back-button');
 
 // --- Utility Functions ---
@@ -52,57 +57,208 @@ function setAppState(newState) {
     }
 }
 
-// --- In-Simulation Menu Logic ---
+// --- In-Simulation Menu Logic (Update show/hide panel logic) ---
 function showInSimMenu() {
-    // Only allow pausing from SIMULATING state
     if (currentAppState !== APP_STATE.SIMULATING) return;
 
     setAppState(APP_STATE.PAUSED);
-    simulatorEngine?.pause(); // Tell engine to pause simulation logic
+    simulatorEngine?.pause();
     showElement(inSimMenuElement);
-    hideElement(settingsPanel); // Ensure sub-panels are hidden initially
+    showElement(pauseMainOptions); // Ensure main options are visible initially
+    hideElement(settingsPanel);
     hideElement(controlsPanel);
     hideElement(applySaveButton);
-    document.exitPointerLock(); // Release mouse control is crucial
+    document.exitPointerLock();
     if (getCurrentConfig().DEBUG_MODE) console.log("In-Sim Menu Shown, Pointer Lock Released");
 }
 
 function hideInSimMenu() {
-    // Only allow resuming from PAUSED state
     if (currentAppState !== APP_STATE.PAUSED) return;
 
     hideElement(inSimMenuElement);
-    simulatorEngine?.resume(); // Tell engine to resume simulation logic
+    simulatorEngine?.resume();
     setAppState(APP_STATE.SIMULATING);
-
-    // Attempt to regain pointer lock - best triggered by user click on canvas,
-    // but we can try here after clicking "Resume". May fail if not user-initiated.
     canvasElement.requestPointerLock()
         .catch(err => console.warn("Pointer lock request failed after resume:", err.name, err.message));
-
     if (getCurrentConfig().DEBUG_MODE) console.log("In-Sim Menu Hidden, Resuming Simulation");
 }
 
 function showSettingsPanel(panelElement) {
-    // Hide the main pause menu buttons when showing a panel
-    const mainPauseButtons = inSimMenuElement.querySelector('.menu-content > button'); // Find direct button children
-    if (mainPauseButtons) mainPauseButtons.parentNode.classList.add('hidden'); // Hide container holding buttons
-
-    // Show the selected panel and the apply/save button
-    showElement(panelElement);
-    showElement(applySaveButton);
+    hideElement(pauseMainOptions); // Hide the main pause menu buttons
+    showElement(panelElement);     // Show the selected panel
+    showElement(applySaveButton);  // Show the apply/save button
+    // Ensure the other panel is hidden if switching directly
+    if (panelElement === settingsPanel) hideElement(controlsPanel);
+    if (panelElement === controlsPanel) hideElement(settingsPanel);
 }
 
 function hideSettingsPanels() {
-    // Hide specific panels and apply/save
     hideElement(settingsPanel);
     hideElement(controlsPanel);
     hideElement(applySaveButton);
-
-    // Show the main pause menu buttons again
-    const mainPauseButtons = inSimMenuElement.querySelector('.menu-content > button');
-    if (mainPauseButtons) mainPauseButtons.parentNode.classList.remove('hidden');
+    showElement(pauseMainOptions); // Show the main pause menu buttons again
 }
+
+
+/** Creates a container div for a setting item */
+function createSettingItem(labelText) {
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'setting-item';
+
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    itemDiv.appendChild(label);
+
+    const controlContainer = document.createElement('div');
+    controlContainer.className = 'control-container';
+    itemDiv.appendChild(controlContainer);
+
+    return { itemDiv, controlContainer };
+}
+
+/** Creates a slider with label and value display */
+function createSlider(labelText, min, max, step, configKeyPath) {
+    const { itemDiv, controlContainer } = createSettingItem(labelText);
+    const config = ConfigManager.getConfig();
+    const keys = configKeyPath.split('.');
+    const initialValue = keys.reduce((obj, key) => (obj && obj[key] !== 'undefined') ? obj[key] : 0, config);
+
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = min;
+    slider.max = max;
+    slider.step = step;
+    slider.value = initialValue;
+    controlContainer.appendChild(slider);
+
+    const valueDisplay = document.createElement('span');
+    valueDisplay.className = 'value-display';
+    valueDisplay.textContent = Number(initialValue).toFixed(step.toString().includes('.') ? step.toString().split('.')[1].length : 0); // Format based on step
+    controlContainer.appendChild(valueDisplay);
+
+    slider.addEventListener('input', () => {
+        const numericValue = parseFloat(slider.value);
+        valueDisplay.textContent = numericValue.toFixed(step.toString().includes('.') ? step.toString().split('.')[1].length : 0);
+        ConfigManager.updateUserSetting(configKeyPath, numericValue);
+    });
+
+    return itemDiv;
+}
+
+/** Creates a number input with label */
+function createNumberInput(labelText, min, max, step, configKeyPath) {
+    const { itemDiv, controlContainer } = createSettingItem(labelText);
+    const config = ConfigManager.getConfig();
+    const keys = configKeyPath.split('.');
+    const initialValue = keys.reduce((obj, key) => (obj && obj[key] !== 'undefined') ? obj[key] : 0, config);
+
+    const numberInput = document.createElement('input');
+    numberInput.type = 'number';
+    numberInput.min = min;
+    numberInput.max = max;
+    numberInput.step = step;
+    numberInput.value = initialValue;
+    controlContainer.appendChild(numberInput); // Add input to control container
+
+    numberInput.addEventListener('change', () => { // Use change instead of input for number fields typically
+        let numericValue = parseFloat(numberInput.value);
+        // Clamp value within min/max
+        numericValue = Math.max(min, Math.min(max, numericValue));
+        numberInput.value = numericValue; // Update input field if clamped
+        ConfigManager.updateUserSetting(configKeyPath, numericValue);
+    });
+
+    // Add a simple span wrapper for alignment if needed, or style input directly
+    // const wrapper = document.createElement('span'); // Optional wrapper
+    // wrapper.appendChild(numberInput);
+    // controlContainer.appendChild(wrapper);
+
+    return itemDiv;
+}
+
+
+/** Creates a checkbox with label */
+function createCheckbox(labelText, configKeyPath) {
+    const { itemDiv, controlContainer } = createSettingItem(labelText);
+    const config = ConfigManager.getConfig();
+    const keys = configKeyPath.split('.');
+    const initialValue = keys.reduce((obj, key) => (obj && obj[key] !== 'undefined') ? obj[key] : false, config);
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = initialValue;
+    // controlContainer.appendChild(checkbox); // Append directly to container
+    controlContainer.style.justifyContent = 'flex-end'; // Push checkbox to the right
+    controlContainer.appendChild(checkbox);
+
+
+    checkbox.addEventListener('change', () => {
+        ConfigManager.updateUserSetting(configKeyPath, checkbox.checked);
+    });
+
+    return itemDiv;
+}
+
+/** Creates a simple text display item */
+function createDisplayItem(labelText, valueText) {
+    const { itemDiv, controlContainer } = createSettingItem(labelText);
+    const valueDisplay = document.createElement('span');
+    valueDisplay.className = 'value-display'; // Reuse class for style
+    valueDisplay.textContent = valueText;
+    valueDisplay.style.fontWeight = 'normal'; // Optional: make it less bold than slider values
+    controlContainer.appendChild(valueDisplay);
+    return itemDiv;
+}
+
+
+// --- NEW: Populate Settings Panels ---
+function populateSettingsPanels() {
+    const config = ConfigManager.getConfig(); // Get current merged config
+
+    // Clear previous controls if any (e.g., if called multiple times)
+    flySettingsContent.innerHTML = '<h4>Fly Settings</h4>';
+    physicsSettingsContent.innerHTML = '<h4>Physics Settings</h4>';
+    gamepadSettingsContent.innerHTML = '<h4>Gamepad Settings</h4>';
+    keyboardSettingsDisplay.innerHTML = '<h4>Keyboard Settings</h4>';
+
+
+    // --- Fly Settings Panel ---
+    flySettingsContent.appendChild(createSlider('FPV FOV', 70, 140, 1, 'FPV_CAMERA_FOV'));
+    // flySettingsContent.appendChild(createNumberInput('FPV FOV', 70, 140, 1, 'FPV_CAMERA_FOV')); // Alternative
+    // Add sensitivity later if needed
+
+    // --- Physics Settings Panel ---
+    physicsSettingsContent.appendChild(createSlider('Drone Mass (kg)', 0.1, 2.0, 0.05, 'DRONE_MASS'));
+    physicsSettingsContent.appendChild(createSlider('Linear Damping', 0, 1, 0.05, 'DRONE_PHYSICS_SETTINGS.linearDamping'));
+    physicsSettingsContent.appendChild(createSlider('Angular Damping', 0, 1, 0.01, 'DRONE_PHYSICS_SETTINGS.angularDamping'));
+
+    // --- Controls Panel (Gamepad) ---
+    gamepadSettingsContent.appendChild(createSlider('Gamepad Deadzone', 0, 0.5, 0.01, 'GAMEPAD_DEADZONE'));
+    gamepadSettingsContent.appendChild(createCheckbox('Invert Roll Axis', 'GAMEPAD_INVERT_AXES.roll'));
+    gamepadSettingsContent.appendChild(createCheckbox('Invert Pitch Axis', 'GAMEPAD_INVERT_AXES.pitch'));
+    gamepadSettingsContent.appendChild(createCheckbox('Invert Yaw Axis', 'GAMEPAD_INVERT_AXES.yaw'));
+    gamepadSettingsContent.appendChild(createCheckbox('Invert Thrust Axis', 'GAMEPAD_INVERT_AXES.thrust'));
+    // Display current button mapping (non-interactive for now)
+    gamepadSettingsContent.appendChild(createDisplayItem('Arm/Disarm Button', `Index ${config.GAMEPAD_BUTTON_MAPPING.armDisarm}`));
+    gamepadSettingsContent.appendChild(createDisplayItem('Reset Button', `Index ${config.GAMEPAD_BUTTON_MAPPING.reset}`));
+
+
+    // --- Controls Panel (Keyboard Display) ---
+    keyboardSettingsDisplay.appendChild(createSlider('Keyboard Roll Sens.', 0.1, 2.0, 0.05, 'KEYBOARD_SENSITIVITY.roll'));
+    keyboardSettingsDisplay.appendChild(createSlider('Keyboard Pitch Sens.', 0.1, 2.0, 0.05, 'KEYBOARD_SENSITIVITY.pitch'));
+    keyboardSettingsDisplay.appendChild(createSlider('Keyboard Yaw Sens.', 0.1, 2.0, 0.05, 'KEYBOARD_SENSITIVITY.yaw'));
+    // Display basic key mapping (non-interactive)
+    keyboardSettingsDisplay.appendChild(createDisplayItem('Pitch Keys', 'W / S / Up / Down'));
+    keyboardSettingsDisplay.appendChild(createDisplayItem('Roll Keys', 'A / D / Left / Right'));
+    keyboardSettingsDisplay.appendChild(createDisplayItem('Yaw Keys', 'Q / E'));
+    keyboardSettingsDisplay.appendChild(createDisplayItem('Thrust Keys', 'Shift (Up), Ctrl (Down), Space (Cut)'));
+    keyboardSettingsDisplay.appendChild(createDisplayItem('Arm/Disarm Key', 'Enter'));
+    keyboardSettingsDisplay.appendChild(createDisplayItem('Reset Key', 'R'));
+
+
+    if (config.DEBUG_MODE) console.log("Settings panels populated with controls.");
+}
+
 
 
 // --- Simulation Lifecycle Functions ---
@@ -208,6 +364,9 @@ function initializeApp() {
         console.warn("App initializing in unexpected state:", currentAppState);
         returnToMainMenu(); // Force back to menu if state is weird
     }
+
+    populateSettingsPanels(); // << Call the new function
+
 
     // --- Bind Event Listeners ---
 

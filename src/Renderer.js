@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'; // Import OrbitControls
 import Config from './Config.js';
+import ConfigManager, { getCurrentConfig } from './ConfigManager.js'; // Use ConfigManager
 
 class Renderer {
     constructor(engine) {

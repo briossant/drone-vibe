@@ -114,28 +114,18 @@ class Drone {
         console.log("DEBUG: Drone.initialize() START"); // ADD
         const startPos = initialPosition || config.DRONE_START_POSITION;
 
-        try { // ADD try...catch block locally
-            console.log("DEBUG: Drone - Creating visual model..."); // ADD
+        try {
             this.visual = await this.createVisualModel();
-            console.log("DEBUG: Drone - Visual model created:", this.visual); // ADD
             this.visual.position.set(startPos.x, startPos.y, startPos.z);
-            console.log("DEBUG: Drone - Adding visual to renderer..."); // ADD
             this.engine.renderer.addObject(this.visual);
-            console.log("DEBUG: Drone - Visual added."); // ADD
-
-            console.log("DEBUG: Drone - Creating physics body at", startPos); // ADD
             this.physicsBody = this.createPhysicsBody(startPos);
-            console.log("DEBUG: Drone - Physics body created:", this.physicsBody); // ADD
 
             if (this.physicsBody) {
-                console.log("DEBUG: Drone - Adding physics body to engine..."); // ADD
                 this.engine.physicsEngine.addBody(this.physicsBody, this.visual);
-                console.log("DEBUG: Drone - Physics body added."); // ADD
             } else {
                 console.error("Drone ERROR: Failed to create physics body."); // Keep this
             }
 
-            console.log("DEBUG: Drone - Creating FPV camera..."); // ADD
             this.fpvCamera = new THREE.PerspectiveCamera(
                 config.FPV_CAMERA_FOV,
                 window.innerWidth / window.innerHeight,
@@ -144,20 +134,15 @@ class Drone {
             this.fpvCamera.position.set(0, 0.05, 0.1);
             this.fpvCamera.rotation.set(0, 0, 0);
             this.fpvCamera.name = "FPVCamera";
-            console.log("DEBUG: Drone - Attaching FPV camera..."); // ADD
             this.visual.add(this.fpvCamera);
-            console.log("DEBUG: Drone - FPV camera attached."); // ADD
 
-            console.log("DEBUG: Drone - Finding props..."); // ADD
             this.findPropsInModel();
-            console.log("DEBUG: Drone - Props found."); // ADD
 
             if (config.DEBUG_MODE && this.physicsBody) {
                 console.log(`Drone: Async Initialization complete at specified position. FPV FOV: ${config.FPV_CAMERA_FOV}`);
             } else if(config.DEBUG_MODE){
                 console.log('Drone: Async Initialization FAILED or incomplete (No physics body?).');
             }
-            console.log("DEBUG: Drone.initialize() END (Successful)"); // ADD
 
         } catch (error) {
             console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"); // Make error stand out
@@ -249,25 +234,47 @@ class Drone {
         this.physicsBody.applyTorque(worldTorque);
     }
 
-    // --- NEW: Apply Configuration ---
     applyConfiguration(config) {
         if (!config) return;
-        const C = config; // Alias for brevity
+        const C = config;
+
+        let configChanged = false; // Track if anything changed for logging
 
         if (this.physicsBody) {
-            this.physicsBody.mass = C.DRONE_MASS;
-            this.physicsBody.linearDamping = C.DRONE_PHYSICS_SETTINGS.linearDamping;
-            this.physicsBody.angularDamping = C.DRONE_PHYSICS_SETTINGS.angularDamping;
-            this.physicsBody.updateMassProperties(); // Recalculate inertia if mass changes
-            if(C.DEBUG_MODE) console.log("Drone: Applied physics config changes.");
+            if (this.physicsBody.mass !== C.DRONE_MASS) {
+                this.physicsBody.mass = C.DRONE_MASS;
+                configChanged = true;
+            }
+            if (this.physicsBody.linearDamping !== C.DRONE_PHYSICS_SETTINGS.linearDamping) {
+                this.physicsBody.linearDamping = C.DRONE_PHYSICS_SETTINGS.linearDamping;
+                configChanged = true;
+            }
+            if (this.physicsBody.angularDamping !== C.DRONE_PHYSICS_SETTINGS.angularDamping) {
+                this.physicsBody.angularDamping = C.DRONE_PHYSICS_SETTINGS.angularDamping;
+                configChanged = true;
+            }
+            if (configChanged) {
+                this.physicsBody.updateMassProperties(); // Recalculate inertia if mass/shape potentially changes
+                if(C.DEBUG_MODE) console.log("Drone: Applied physics config changes (Mass/Damping). Recalculated mass props.");
+            }
         }
+
+        let cameraChanged = false;
         if (this.fpvCamera) {
-            this.fpvCamera.fov = C.FPV_CAMERA_FOV;
-            this.fpvCamera.updateProjectionMatrix(); // IMPORTANT! Apply FOV change
-            if(C.DEBUG_MODE) console.log("Drone: Applied FPV Camera FOV change.");
+            if (this.fpvCamera.fov !== C.FPV_CAMERA_FOV) {
+                this.fpvCamera.fov = C.FPV_CAMERA_FOV;
+                this.fpvCamera.updateProjectionMatrix(); // IMPORTANT! Apply FOV change
+                cameraChanged = true;
+                if(C.DEBUG_MODE) console.log("Drone: Applied FPV Camera FOV change.");
+            }
         }
+
         // Apply other drone-specific settings here later (e.g., PID gains)
+        if (!configChanged && !cameraChanged && C.DEBUG_MODE) {
+            // console.log("Drone: applyConfiguration called, but no relevant values changed."); // Optional log
+        }
     }
+
 
     arm() {
         const Config = getCurrentConfig(); // Get config early if needed
