@@ -5,7 +5,15 @@
 const defaultConfig = {
     // Graphics/Renderer Settings
     FPV_CAMERA_FOV: 110,
-    // Add Post-Processing toggles later, e.g., enableBloom: false
+    GRAPHICS_SETTINGS: {
+        enableBloom: false,
+        // bloomStrength: 0.5, // Add if making configurable
+        // bloomRadius: 0.4,
+        // bloomThreshold: 0.85,
+        enableVignette: false,
+        // vignetteOffset: 0.95, // Add if making configurable
+        // vignetteDarkness: 0.8,
+    },
 
     // Physics Settings
     DRONE_MASS: 0.8, // kg

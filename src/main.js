@@ -19,6 +19,8 @@ const loadingIndicatorElement = document.getElementById('loading-indicator');
 const flyButton = document.getElementById('fly-button');
 const canvasElement = document.getElementById('webgl-canvas');
 const osdElement = document.getElementById('osd');
+const fadeOverlay = document.getElementById('fade-overlay'); // << NEW
+const graphicsSettingsContent = document.getElementById('graphics-settings-content'); // << NEW
 const resumeButton = document.getElementById('resume-button');
 const restartButton = document.getElementById('restart-button');
 const mainMenuButton = document.getElementById('main-menu-button');
@@ -42,6 +44,28 @@ function showElement(element) {
 
 function hideElement(element) {
     element?.classList.add('hidden');
+}
+
+
+// <<<< NEW Fade Function >>>>
+async function fadeTransition(actionBetweenFades) {
+    if (!fadeOverlay) return; // Safety check
+
+    // Fade Out
+    fadeOverlay.classList.remove('hidden'); // Make it participate in layout
+    await new Promise(resolve => requestAnimationFrame(resolve)); // Wait a frame for display change
+    fadeOverlay.classList.add('visible');
+    await new Promise(resolve => setTimeout(resolve, 300)); // Wait for fade duration
+
+    // Perform Action
+    if (actionBetweenFades) {
+        await actionBetweenFades(); // Execute the provided function (e.g., reset)
+    }
+
+    // Fade In
+    fadeOverlay.classList.remove('visible');
+    await new Promise(resolve => setTimeout(resolve, 300)); // Wait for fade duration
+    fadeOverlay.classList.add('hidden'); // Hide completely
 }
 
 // --- State Management ---
@@ -216,6 +240,7 @@ function populateSettingsPanels() {
     const config = ConfigManager.getConfig(); // Get current merged config
 
     // Clear previous controls if any (e.g., if called multiple times)
+    graphicsSettingsContent.innerHTML = '<h4>Graphics Settings</h4>'; // << NEW
     flySettingsContent.innerHTML = '<h4>Fly Settings</h4>';
     physicsSettingsContent.innerHTML = '<h4>Physics Settings</h4>';
     const fcSettingsContent = document.createElement('div'); // Create a new div for FC settings
@@ -225,6 +250,8 @@ function populateSettingsPanels() {
     gamepadSettingsContent.innerHTML = '<h4>Gamepad Settings</h4>';
     keyboardSettingsDisplay.innerHTML = '<h4>Keyboard Settings</h4>';
 
+    graphicsSettingsContent.appendChild(createCheckbox('Enable Bloom', 'GRAPHICS_SETTINGS.enableBloom'));
+    graphicsSettingsContent.appendChild(createCheckbox('Enable Vignette', 'GRAPHICS_SETTINGS.enableVignette'));
 
     // --- Fly Settings Panel ---
     flySettingsContent.appendChild(createSlider('FPV FOV', 70, 140, 1, 'FPV_CAMERA_FOV'));
@@ -397,17 +424,53 @@ function initializeApp() {
 
     // In-Simulation Menu Actions
     resumeButton?.addEventListener('click', hideInSimMenu);
-    restartButton?.addEventListener('click', () => {
-        // Can only restart when paused
+    // <<<< MODIFY Restart Button Listener >>>>
+    restartButton?.addEventListener('click', async () => { // Make listener async
         if (simulatorEngine && currentAppState === APP_STATE.PAUSED) {
             if (getCurrentConfig().DEBUG_MODE) console.log("Restart button clicked while paused.");
-            simulatorEngine.restartFlight(); // Reset drone state/position
-            hideInSimMenu(); // Resume simulation and hide menu
+            hideElement(inSimMenuElement); // Hide menu BEFORE fade starts
+
+            // Use the fade transition
+            await fadeTransition(async () => {
+                simulatorEngine.restartFlight(); // Reset drone state/position during black screen
+                // Any other actions needed immediately after reset but before fade-in?
+            });
+
+            // Resume simulation AFTER fade-in is complete
+            simulatorEngine?.resume(); // Resume simulation logic
+            setAppState(APP_STATE.SIMULATING);
+            canvasElement.requestPointerLock().catch(err => console.warn("Pointer lock request failed after restart:", err.name, err.message));
+            if (getCurrentConfig().DEBUG_MODE) console.log("Restart complete, resuming simulation.");
+
         } else {
             if (getCurrentConfig().DEBUG_MODE) console.warn("Restart button clicked, but not paused or engine not ready.");
         }
     });
-    mainMenuButton?.addEventListener('click', returnToMainMenu);
+
+
+    mainMenuButton?.addEventListener('click', async () => { // Make listener async
+        // Use fade transition when returning to menu
+        hideElement(inSimMenuElement); // Hide menu before fade
+
+        await fadeTransition(async () => {
+            if (simulatorEngine) {
+                simulatorEngine.stop();
+                simulatorEngine.dispose();
+                simulatorEngine = null;
+                window.simEngine = null;
+                if (getCurrentConfig().DEBUG_MODE) console.log("Simulator engine disposed.");
+            }
+            // Reset UI during black screen
+            hideElement(canvasElement);
+            hideElement(osdElement);
+            loadingIndicatorElement.querySelector('p').textContent = 'Loading...'; // Reset loading text
+        });
+
+        // Show main menu AFTER fade-in
+        showElement(mainMenuElement);
+        setAppState(APP_STATE.MENU);
+        document.exitPointerLock();
+    });
 
     // Settings/Controls Panel Toggles
     settingsPanelButton?.addEventListener('click', () => showSettingsPanel(settingsPanel));

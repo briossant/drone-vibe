@@ -164,7 +164,7 @@ class SimulatorEngine {
         // --- End Main Update Cycle ---
 
         // 8. Render Scene (Always render, even when paused, for menu visibility)
-        this.renderer.render();
+        this.renderer.render(clampedDeltaTime);
     }
 
     // --- Simplified toggleArmDisarm ---

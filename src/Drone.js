@@ -117,6 +117,7 @@ class Drone {
             if (this.physicsBody) {
                 this.engine.physicsEngine.addBody(this.physicsBody, this.visual);
                 this.flightController = new FlightController(this.physicsBody);
+                this.physicsBody.addEventListener('collide', this.handleCollision.bind(this));
             } else {
                 console.error("Drone ERROR: Failed to create physics body."); // Keep this
             }
@@ -144,6 +145,31 @@ class Drone {
             console.error("ERROR inside Drone.initialize():", error);
             console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"); // Make error stand out
             throw error; // Re-throw the error so main.js still catches it
+        }
+    }
+
+    handleCollision(event) {
+        const config = getCurrentConfig();
+        const contact = event.contact;
+
+        // Calculate relative velocity at the contact point (approximation)
+        const v1 = contact.bi.velocity; // Drone body velocity
+        const v2 = contact.bj.velocity; // Other body velocity (often 0 for static)
+        const relativeVelocity = v1.vsub(v2); // v1 - v2
+        const impactSpeed = relativeVelocity.length();
+
+        // Determine collision intensity (adjust threshold as needed)
+        const intensityThreshold = 1.5; // Minimum impact speed to trigger shake
+        const maxIntensitySpeed = 15.0; // Speed at which shake is maximum
+        let shakeIntensity = 0;
+
+        if (impactSpeed > intensityThreshold) {
+            shakeIntensity = Math.min(1.0, (impactSpeed - intensityThreshold) / (maxIntensitySpeed - intensityThreshold));
+            if (config.DEBUG_MODE) {
+                // console.log(`Drone Collision Detected! Impact Speed: ${impactSpeed.toFixed(2)}, Shake Intensity: ${shakeIntensity.toFixed(2)}`);
+            }
+            // Trigger camera shake via the engine/renderer
+            this.engine?.renderer?.triggerCameraShake(shakeIntensity); // Pass intensity
         }
     }
 

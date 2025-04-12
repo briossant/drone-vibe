@@ -278,3 +278,34 @@ html, body {
 #pause-main-options.hidden {
     display: none;
 }
+
+
+/* NEW: Fade Overlay Styling */
+#fade-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: black;
+    opacity: 0; /* Start fully transparent */
+    pointer-events: none; /* Don't block clicks when invisible */
+    z-index: 200; /* Above menus and canvas, below potential future UI popups? */
+    transition: opacity 0.3s ease-in-out; /* Smooth fade */
+}
+
+#fade-overlay.visible {
+    opacity: 1;
+}
+
+/* Ensure hidden class still works */
+#fade-overlay.hidden {
+    display: block; /* Keep display block during fade */
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Utility Class (ensure important is used if needed) */
+.hidden {
+    display: none !important;
+}

@@ -45,6 +45,9 @@
         <!-- Panels for actual settings -->
         <div id="settings-panel" class="panel hidden">
             <h3>Settings</h3>
+            <div id="graphics-settings-content"> <!-- <<<< NEW CONTAINER -->
+                <h4>Graphics Settings</h4>
+            </div>
             <!-- Content will be injected here -->
             <div id="fly-settings-content">
                 <h4>Fly Settings</h4>
@@ -76,6 +79,7 @@
     </div>
 </div>
 
+<div id="fade-overlay" class="hidden"></div>
 
 <!-- Canvas for Three.js rendering (Initially hidden potentially) -->
 <canvas id="webgl-canvas" class="hidden"></canvas>
