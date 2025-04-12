@@ -121,18 +121,23 @@ class Drone {
             console.error("Drone ERROR: Failed to create physics body.");
         }
 
-        // Create and Attach FPV Camera
-        // ... (rest of camera setup) ...
-        this.fpvCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.fpvCamera.position.set(0, 0.05, 0.1);
-        this.fpvCamera.rotation.set(0, 0, 0);
+        // --- Create and Attach FPV Camera ---
+        this.fpvCamera = new THREE.PerspectiveCamera(
+            Config.FPV_CAMERA_FOV, // <<< Use FOV from Config
+            window.innerWidth / window.innerHeight,
+            0.1, // Near plane
+            1000 // Far plane
+        );
+        // Adjust position relative to the visual model's coordinate system
+        this.fpvCamera.position.set(0, 0.05, 0.1); // EXAMPLE: Slightly up and forward (TUNE THIS based on your model!)
+        this.fpvCamera.rotation.set(0, 0, 0); // Level relative to drone body
         this.fpvCamera.name = "FPVCamera";
-        this.visual.add(this.fpvCamera);
+        this.visual.add(this.fpvCamera); // Attach camera to the GLTF scene group
 
         this.findPropsInModel();
 
         if (Config.DEBUG_MODE && this.physicsBody) {
-            console.log(`Drone: Async Initialization complete at specified position.`);
+            console.log(`Drone: Async Initialization complete at specified position. FPV FOV: ${Config.FPV_CAMERA_FOV}`);
         } else if(Config.DEBUG_MODE){
             console.log('Drone: Async Initialization FAILED or incomplete.');
         }

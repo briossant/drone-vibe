@@ -37,7 +37,6 @@ class SimulatorEngine {
         }
     }
 
-    // --- Make initialize asynchronous ---
     async initialize() {
         if (Config.DEBUG_MODE) console.log('SimulatorEngine: Initializing modules...');
 
@@ -45,26 +44,31 @@ class SimulatorEngine {
         this.renderer.initialize(this.canvas);
         this.physicsEngine.initialize();
         this.inputManager.initialize();
-        this.uiManager.initialize(); // OSD elements are created here
+        this.uiManager.initialize();
 
+        // Initialize World
         await this.world.initialize();
 
-        // Initialize Drone - uses default start position from Config now
-        await this.drone.initialize(); // No need to pass position here if using default
+        // Initialize Drone (which creates the FPV camera)
+        await this.drone.initialize(); // Uses default start position from Config now
 
-        // Set the INITIAL active camera
-        // ... (camera switching logic remains the same) ...
-        if (this.renderer.debugCamera) {
-            this.renderer.setActiveCamera(this.renderer.debugCamera);
-            console.log("SimulatorEngine: Initial active camera set to DEBUG camera.");
-        } else if (this.drone.FPVCamera) {
+        // --- Set the INITIAL active camera ---
+        // PRIORITIZE FPV CAMERA
+        if (this.drone.FPVCamera) {
             this.renderer.setActiveCamera(this.drone.FPVCamera);
-            console.warn("SimulatorEngine: Using FPV camera as fallback initial camera.");
-        } else {
-            console.error("SimulatorEngine: No usable camera found!");
+            console.log("SimulatorEngine: Initial active camera set to FPV camera.");
+        }
+        // Fallback to Debug Camera if FPV camera wasn't created for some reason
+        else if (this.renderer.debugCamera) {
+            this.renderer.setActiveCamera(this.renderer.debugCamera);
+            console.warn("SimulatorEngine: FPV Camera not found! Using DEBUG camera as fallback.");
+        }
+        // Error if neither camera is available
+        else {
+            console.error("SimulatorEngine FATAL: No usable camera found (FPV or Debug)!");
         }
 
-        this.setupDebugControls(); // Setup controls AFTER everything is ready
+        this.setupDebugControls();
 
         if (Config.DEBUG_MODE) console.log('SimulatorEngine: Initialization complete.');
     }

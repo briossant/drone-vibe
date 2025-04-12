@@ -7,6 +7,8 @@ const Config = {
     // --- NEW: Drone Starting Position ---
     DRONE_START_POSITION: { x: 0, y: 1, z: 0 },
 
+    FPV_CAMERA_FOV: 110, // Field of View in degrees (Common FPV values: 100-130)
+
     // Drone properties
     DRONE_MASS: 0.8, // kg
     // ... (rest of DRONE_DIMENSIONS)
