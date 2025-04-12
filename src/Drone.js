@@ -3,11 +3,9 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import AssetLoader from './AssetLoader.js';
 import {getCurrentConfig} from "./ConfigManager.js"; // Import loader instance
+import FlightController from './FlightController.js'; // <<<< IMPORT
 
 // Reuse Vec3 instances for torque calculations to reduce garbage collection
-const localTorque = new CANNON.Vec3();
-const worldTorque = new CANNON.Vec3();
-const thrustForceVec = new CANNON.Vec3();
 const euler = new THREE.Euler(); // Create once, reuse
 
 class Drone {
@@ -18,11 +16,7 @@ class Drone {
         this.physicsBody = null;
         this.fpvCamera = null;
         this.propellers = [];
-        this.armed = false;
-        this.flightMode = 'RATE'; // Default
-
-        // Use dimensions from loaded config if they become configurable, else keep original Config
-        // this.dimensions = config.DRONE_DIMENSIONS;
+        this.flightController = null; // <<<< ADD reference
 
         if (config.DEBUG_MODE) {
             console.log('Drone: Initialized');
@@ -122,6 +116,7 @@ class Drone {
 
             if (this.physicsBody) {
                 this.engine.physicsEngine.addBody(this.physicsBody, this.visual);
+                this.flightController = new FlightController(this.physicsBody);
             } else {
                 console.error("Drone ERROR: Failed to create physics body."); // Keep this
             }
@@ -172,66 +167,24 @@ class Drone {
         }
     }
 
-    // --- Update method potentially animates found props ---
     update(deltaTime, controls) {
-        if (!this.physicsBody) return;
+        if (!this.physicsBody || !this.flightController) return; // Check FC too
 
-        this.applyControls(deltaTime, controls);
+        // Delegate control logic to the FlightController
+        this.flightController.update(deltaTime, controls);
 
-        // Propeller Animation - Use found props if available
-        if (this.armed && this.physicsBody.mass > 0 && this.propellers.length > 0) {
-            const spinSpeed = controls.thrust * 80 + (this.armed ? 15 : 0); // Faster spin maybe
+        // Propeller Animation - Base it on FC's armed state and controls thrust
+        const isArmed = this.flightController.armed; // Get armed state from FC
+        if (isArmed && this.physicsBody.mass > 0 && this.propellers.length > 0) {
+            const spinSpeed = controls.thrust * 80 + (isArmed ? 15 : 0);
             this.propellers.forEach(prop => {
-                prop.rotation.y += spinSpeed * deltaTime; // Assuming props spin around local Y
+                prop.rotation.y += spinSpeed * deltaTime;
             });
-        } else if (!this.armed && this.propellers.length > 0) {
+        } else if (!isArmed && this.propellers.length > 0) {
             this.propellers.forEach(prop => {
-                prop.rotation.y *= 0.90; // Slow down faster
+                prop.rotation.y *= 0.90;
             });
         }
-    }
-
-    applyControls(deltaTime, controls) {
-        if (!this.physicsBody) {
-            console.warn("applyControls skipped: physicsBody is missing.");
-            return;
-        }
-        const Config = getCurrentConfig(); // Get latest config for multipliers
-
-        // --- Disarmed State ---
-        if (!this.armed) {
-            // Optional: Apply stronger damping or simply let existing damping handle it
-            // this.physicsBody.angularVelocity.scale(0.95, this.physicsBody.angularVelocity);
-            return; // No control inputs applied when disarmed
-        }
-
-        // --- Thrust Application (Local Y-axis) ---
-        const maxThrust = Config.DRONE_CONTROL_MULTIPLIERS.MAX_THRUST;
-        const currentThrustForce = controls.thrust * maxThrust;
-        // Apply force upwards along the drone's local Y axis
-        thrustForceVec.set(0, currentThrustForce, 0);
-        // Apply force at the center of mass (CANNON.Vec3.ZERO)
-        this.physicsBody.applyLocalForce(thrustForceVec, CANNON.Vec3.ZERO);
-
-        // --- Torque Calculation (Local Space) ---
-        // Map controls (-1 to 1) to torque values
-        // IMPORTANT AXIS MAPPING:
-        // - Pitch Control (W/S keys -> controls.pitch): Affects rotation around the drone's LOCAL X-axis. Positive pitch input (W key) should make the nose go DOWN (negative X torque).
-        // - Roll Control (A/D keys -> controls.roll): Affects rotation around the drone's LOCAL Z-axis. Positive roll input (D key) should make the right side go DOWN (negative Z torque).
-        // - Yaw Control (Q/E keys -> controls.yaw): Affects rotation around the drone's LOCAL Y-axis. Positive yaw input (E key) should make the nose turn RIGHT (negative Y torque).
-        const pitchTorque = -controls.pitch * Config.DRONE_CONTROL_MULTIPLIERS.PITCH_TORQUE;
-        const rollTorque = -controls.roll * Config.DRONE_CONTROL_MULTIPLIERS.ROLL_TORQUE;
-        const yawTorque = -controls.yaw * Config.DRONE_CONTROL_MULTIPLIERS.YAW_TORQUE;
-
-        // Set the calculated torques in the drone's LOCAL coordinate system
-        localTorque.set(pitchTorque, yawTorque, rollTorque); // (X, Y, Z torque)
-
-        // --- Convert Local Torque to World Torque ---
-        // Cannon-es requires torques to be applied in world space.
-        this.physicsBody.vectorToWorldFrame(localTorque, worldTorque); // Converts localTorque -> worldTorque using body's current orientation
-
-        // --- Apply the World-Space Torque ---
-        this.physicsBody.applyTorque(worldTorque);
     }
 
     applyConfiguration(config) {
@@ -269,65 +222,54 @@ class Drone {
             }
         }
 
-        // Apply other drone-specific settings here later (e.g., PID gains)
-        if (!configChanged && !cameraChanged && C.DEBUG_MODE) {
-            // console.log("Drone: applyConfiguration called, but no relevant values changed."); // Optional log
+        if (this.flightController) {
+            this.flightController.applyConfiguration(config); // Pass the whole config
+            if (C.DEBUG_MODE) console.log("Drone: Applied config to FlightController.");
+        } else if (C.DEBUG_MODE) {
+            console.warn("Drone.applyConfiguration: FlightController not initialized yet.");
         }
     }
 
-
     arm() {
-        const Config = getCurrentConfig(); // Get config early if needed
-
-        this.armed = true;
-        if (Config.DEBUG_MODE) console.log("Drone Armed");
-        // Optional: Reset angular velocity slightly on arm to prevent sudden spins if disarmed while rotating
-        // this.physicsBody?.angularVelocity.scale(0.5, this.physicsBody.angularVelocity);
+        if (this.flightController) {
+            this.flightController.setArmed(true);
+        } else if (getCurrentConfig().DEBUG_MODE) {
+            console.warn("Drone: Cannot arm, FlightController not initialized.");
+        }
+        // Don't log here, FC logs internally
     }
 
     disarm() {
-        const Config = getCurrentConfig(); // Get config early if needed
-
-        this.armed = false;
-        if (Config.DEBUG_MODE) console.log("Drone Disarmed");
+        if (this.flightController) {
+            this.flightController.setArmed(false);
+        } else if (getCurrentConfig().DEBUG_MODE) {
+            console.warn("Drone: Cannot disarm, FlightController not initialized.");
+        }
+        // Don't log here, FC logs internally
     }
 
     get FPVCamera() {
         return this.fpvCamera;
     }
 
-    // Get relevant state for UI Manager - ENHANCED for Phase 5
+    // Get relevant state for UI Manager
     getState() {
         if (!this.physicsBody) return null;
 
-        // Calculate Speed
         const speed = this.physicsBody.velocity.length();
-
-        // Calculate Attitude (Roll, Pitch, Yaw) from Quaternion
-        // Use 'YXZ' order: Apply Yaw first globally, then Pitch locally, then Roll locally. Common for aircraft/drones.
         euler.setFromQuaternion(this.physicsBody.quaternion, 'YXZ');
-        // Convert radians to degrees for display
-        const rollDeg = euler.z * 180 / Math.PI; // Roll is around local Z in YXZ order convention
-        const pitchDeg = euler.y * 180 / Math.PI;// Pitch is around local Y in YXZ order convention
-        const yawDeg = euler.x * 180 / Math.PI;  // Yaw is around local X in YXZ order convention
-        // NOTE: The axis mapping (euler.x/y/z to Roll/Pitch/Yaw) depends heavily on the chosen Euler order ('YXZ')
-        // and how Three.js defines those rotations. Double-check this visually if the OSD seems wrong.
-        // Let's redefine based on common understanding for 'YXZ' (often ZXY in THREE Euler based on axis):
-        // Re-checking THREE docs for YXZ order: x is Pitch, y is Yaw, z is Roll.
         const pitchDeg_Corrected = euler.x * 180 / Math.PI;
         const yawDeg_Corrected = euler.y * 180 / Math.PI;
         const rollDeg_Corrected = euler.z * 180 / Math.PI;
 
-
         return {
-            position: this.physicsBody.position.clone(), // Clone to prevent accidental modification
+            position: this.physicsBody.position.clone(),
             velocity: this.physicsBody.velocity.clone(),
             quaternion: this.physicsBody.quaternion.clone(),
-            armed: this.armed,
-            // --- New Data for OSD ---
+            armed: this.flightController ? this.flightController.armed : false, // <<<< Get from FC
             speed: speed,
-            altitude: this.physicsBody.position.y, // Directly use Y position
-            euler: { // Euler angles in degrees
+            altitude: this.physicsBody.position.y,
+            euler: {
                 roll: rollDeg_Corrected,
                 pitch: pitchDeg_Corrected,
                 yaw: yawDeg_Corrected,
@@ -356,6 +298,8 @@ class Drone {
         // Use copy for Vec3 and Quaternion
         this.visual.position.copy(this.physicsBody.position);
         this.visual.quaternion.copy(this.physicsBody.quaternion);
+
+        this.flightController?.reset(); // Call FC's reset method if it exists
 
         if (Config.DEBUG_MODE) console.log(`Drone Reset to position: (${resetPos.x}, ${resetPos.y}, ${resetPos.z})`);
     }

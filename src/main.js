@@ -218,14 +218,33 @@ function populateSettingsPanels() {
     // Clear previous controls if any (e.g., if called multiple times)
     flySettingsContent.innerHTML = '<h4>Fly Settings</h4>';
     physicsSettingsContent.innerHTML = '<h4>Physics Settings</h4>';
+    const fcSettingsContent = document.createElement('div'); // Create a new div for FC settings
+    fcSettingsContent.id = 'fc-settings-content';
+    settingsPanel.insertBefore(fcSettingsContent, physicsSettingsContent); // Insert before physics
+    fcSettingsContent.innerHTML = '<h4>Flight Controller Settings</h4>';
     gamepadSettingsContent.innerHTML = '<h4>Gamepad Settings</h4>';
     keyboardSettingsDisplay.innerHTML = '<h4>Keyboard Settings</h4>';
 
 
     // --- Fly Settings Panel ---
     flySettingsContent.appendChild(createSlider('FPV FOV', 70, 140, 1, 'FPV_CAMERA_FOV'));
-    // flySettingsContent.appendChild(createNumberInput('FPV FOV', 70, 140, 1, 'FPV_CAMERA_FOV')); // Alternative
     // Add sensitivity later if needed
+
+    // --- Flight Controller Panel ---
+    // Roll PID
+    fcSettingsContent.appendChild(createSlider('Roll Rate P', 0, 2.0, 0.02, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.kp')); // Max 2.0, Step 0.02
+    fcSettingsContent.appendChild(createSlider('Roll Rate I', 0, 1.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.ki')); // Max 1.0, Step 0.01
+    fcSettingsContent.appendChild(createSlider('Roll Rate D', 0, 0.2, 0.002, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.kd')); // Max 0.2, Step 0.002
+    // Pitch PID
+    fcSettingsContent.appendChild(createSlider('Pitch Rate P', 0, 2.0, 0.02, 'FLIGHT_CONTROLLER_SETTINGS.PID.pitch.kp'));// Max 2.0, Step 0.02
+    fcSettingsContent.appendChild(createSlider('Pitch Rate I', 0, 1.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.pitch.ki'));// Max 1.0, Step 0.01
+    fcSettingsContent.appendChild(createSlider('Pitch Rate D', 0, 0.2, 0.002, 'FLIGHT_CONTROLLER_SETTINGS.PID.pitch.kd'));// Max 0.2, Step 0.002
+    // Yaw PID
+    fcSettingsContent.appendChild(createSlider('Yaw Rate P', 0, 3.0, 0.05, 'FLIGHT_CONTROLLER_SETTINGS.PID.yaw.kp'));  // Max 3.0, Step 0.05 (Yaw P often higher)
+    fcSettingsContent.appendChild(createSlider('Yaw Rate I', 0, 1.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.yaw.ki'));  // Max 1.0, Step 0.01
+    fcSettingsContent.appendChild(createSlider('Yaw Rate D', 0, 0.1, 0.002, 'FLIGHT_CONTROLLER_SETTINGS.PID.yaw.kd'));  // Max 0.1, Step 0.002 (Yaw D often lower)
+    // Shared I Limit
+    fcSettingsContent.appendChild(createSlider('PID I-Limit', 0, 1.0, 0.02, 'FLIGHT_CONTROLLER_SETTINGS.PID.iLimit')); // Max 1.0, Step 0.02
 
     // --- Physics Settings Panel ---
     physicsSettingsContent.appendChild(createSlider('Drone Mass (kg)', 0.1, 2.0, 0.05, 'DRONE_MASS'));
