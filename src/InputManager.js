@@ -1,5 +1,5 @@
 // src/InputManager.js
-import Config from './Config.js';
+import { getCurrentConfig } from './ConfigManager.js';
 
 class InputManager {
     constructor(engine) {
@@ -17,6 +17,7 @@ class InputManager {
         this._boundKeyUp = this.handleKeyUp.bind(this);
         this._boundGamepadConnected = this.handleGamepadConnected.bind(this);
         this._boundGamepadDisconnected = this.handleGamepadDisconnected.bind(this);
+        const Config = getCurrentConfig(); // Use helper
 
         if (Config.DEBUG_MODE) {
             console.log('InputManager: Initialized');
@@ -26,6 +27,7 @@ class InputManager {
     initialize() {
         window.addEventListener('keydown', this._boundKeyDown);
         window.addEventListener('keyup', this._boundKeyUp);
+        const Config = getCurrentConfig(); // Use helper
 
         if (Config.GAMEPAD_ENABLED) {
             window.addEventListener('gamepadconnected', this._boundGamepadConnected);
@@ -41,22 +43,40 @@ class InputManager {
         }
     }
 
-    update() {
+    update(isPaused = false) { // <<< Accept paused state
+        // If paused, only process menu/system inputs (like Esc handled globally), skip flight controls
+        if (isPaused) {
+            // Reset flight controls when paused to avoid sudden movements on resume?
+            this.controls = { roll: 0, pitch: 0, yaw: 0, thrust: 0 };
+            // Still need to poll buttons for menu interactions if handled here,
+            // but button processing for drone actions (arm/reset) is now handled
+            // globally in main.js's keydown listener or needs re-evaluation.
+            // For now, let's skip gamepad polling entirely if paused.
+            return;
+        }
+
+
+        const config = getCurrentConfig();
         let gamepadInputDetected = false;
-        if (Config.GAMEPAD_ENABLED && this.activeGamepadIndex !== null) {
+        if (config.GAMEPAD_ENABLED && this.activeGamepadIndex !== null) {
             gamepadInputDetected = this.pollActiveGamepad();
         }
 
-        // If no active gamepad input detected, update based on keyboard
         if (!gamepadInputDetected) {
             this.updateKeyboardControls();
         }
 
-        // Process button presses AFTER polling
-        this.processGamepadButtonActions();
+        // Gamepad Button processing for ARM/RESET via buttons is tricky now.
+        // The global keydown handler in main.js handles keyboard arm/reset.
+        // Gamepad button handling for these actions might need to be moved
+        // or checked within the main loop when not paused.
+        // Let's disable the button processing here for now to avoid conflicts.
+        //this.processGamepadButtonActions(); // <<< Disable for now
     }
 
     updateKeyboardControls() {
+        const Config = getCurrentConfig(); // Use helper
+
         // Reset controls if switching from gamepad
         this.controls.roll = 0;
         this.controls.pitch = 0;
@@ -101,6 +121,8 @@ class InputManager {
     }
 
     scanGamepads() {
+        const Config = getCurrentConfig(); // Use helper
+
         if (!navigator.getGamepads) return;
         const detectedGamepads = navigator.getGamepads();
         for (const gp of detectedGamepads) {
@@ -122,6 +144,7 @@ class InputManager {
     // Returns true if significant input was detected, false otherwise
     pollActiveGamepad() {
         if (this.activeGamepadIndex === null || !navigator.getGamepads) return false;
+        const Config = getCurrentConfig(); // Use helper
 
         const gp = navigator.getGamepads()[this.activeGamepadIndex];
         if (!gp || !gp.connected) {
@@ -183,8 +206,27 @@ class InputManager {
         return significantAxisInput || buttonsChanged;
     }
 
+    // --- NEW: Apply Configuration ---
+    applyConfiguration(config) {
+        if (!config) return;
+        const C = config;
+        // Update sensitivities, deadzones etc. used in polling/updates
+        // No direct objects need updating usually, the next `update()` call will use new values.
+        if(C.DEBUG_MODE) console.log("InputManager: Configuration applied (used on next update).");
+        // Re-check gamepad status if GAMEPAD_ENABLED changed
+        if (C.GAMEPAD_ENABLED && !this._boundGamepadConnected) {
+            // Add listeners if they were removed
+            // TODO: Need better logic to handle enabling/disabling gamepad support dynamically
+        } else if (!C.GAMEPAD_ENABLED && this._boundGamepadConnected) {
+            // Remove listeners
+            // TODO: Need better logic here too
+        }
+    }
+
     // Check for button presses and trigger actions via the engine
     processGamepadButtonActions() {
+        const Config = getCurrentConfig(); // Use helper
+
         if (!Config.GAMEPAD_ENABLED || this.activeGamepadIndex === null) return;
 
         const mapping = Config.GAMEPAD_BUTTON_MAPPING;
@@ -213,6 +255,8 @@ class InputManager {
 
 
     handleGamepadConnected(event) {
+        const Config = getCurrentConfig(); // Use helper
+
         const gp = event.gamepad;
         if (Config.DEBUG_MODE) {
             console.log(`InputManager: Gamepad connected at index ${gp.index}: ${gp.id}. ${gp.buttons.length} buttons, ${gp.axes.length} axes.`);
@@ -229,6 +273,8 @@ class InputManager {
     }
 
     handleGamepadDisconnected(event) {
+        const Config = getCurrentConfig(); // Use helper
+
         const index = event.gamepad.index;
         if (Config.DEBUG_MODE) {
             console.log(`InputManager: Gamepad disconnected from index ${index}: ${event.gamepad.id}`);
@@ -265,6 +311,8 @@ class InputManager {
     }
 
     dispose() {
+        const Config = getCurrentConfig(); // Use helper
+
         window.removeEventListener('keydown', this._boundKeyDown);
         window.removeEventListener('keyup', this._boundKeyUp);
         if (Config.GAMEPAD_ENABLED) {

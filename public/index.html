@@ -30,15 +30,45 @@
 <!-- ========================================== -->
 
 
+<!-- ========= NEW: In-Sim Settings Menu ========= -->
+<div id="in-sim-menu" class="overlay hidden"> <!-- Initially hidden -->
+    <div class="menu-content">
+        <h2>Paused</h2>
+        <button id="resume-button">Resume</button>
+        <button id="settings-panel-button">Settings</button> <!-- Will show/hide settings panel -->
+        <button id="controls-panel-button">Controls</button> <!-- Will show/hide controls panel -->
+        <button id="restart-button">Restart Flight</button>
+        <button id="main-menu-button">Return to Main Menu</button>
+
+        <!-- Panels for actual settings (initially hidden within the menu) -->
+        <div id="settings-panel" class="panel hidden">
+            <h3>Settings</h3>
+            <!-- Settings controls (sliders, checkboxes) will go here in Phase 11 -->
+            <p>Graphics / Physics / Fly Settings...</p>
+            <button class="back-button">Back</button>
+        </div>
+        <div id="controls-panel" class="panel hidden">
+            <h3>Controls</h3>
+            <!-- Controls remapping UI will go here in Phase 11 -->
+            <p>Keyboard / Gamepad Mapping...</p>
+            <button class="back-button">Back</button>
+        </div>
+
+        <!-- Apply/Save Button (Appears when panels are open?) -->
+        <button id="apply-save-button" class="hidden">Apply & Save Settings</button>
+    </div>
+</div>
+<!-- ============================================ -->
+
+
 <!-- Canvas for Three.js rendering (Initially hidden potentially) -->
-<canvas id="webgl-canvas" class="hidden"></canvas> <!-- Add hidden class -->
+<canvas id="webgl-canvas" class="hidden"></canvas>
 
 <!-- Overlay for On-Screen Display (Initially hidden) -->
-<div id="osd" class="hidden"> <!-- Add hidden class -->
+<div id="osd" class="hidden">
     <!-- OSD elements will be added here later via JS -->
     <p>Initializing...</p>
 </div>
-
 <!-- Libraries (Keep as is) -->
 <script type="importmap">
     {

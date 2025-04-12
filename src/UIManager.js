@@ -1,5 +1,6 @@
 // src/UIManager.js
-import Config from './Config.js';
+
+import {getCurrentConfig} from "./ConfigManager.js";
 
 class UIManager {
     constructor(engine) {
@@ -8,6 +9,8 @@ class UIManager {
         this.telemetryElements = {
             altitude: null, speed: null, attitude: null, inputs: null, armedStatus: null,
         };
+        const Config = getCurrentConfig(); // Use helper
+        this.inSimMenuElement = document.getElementById('in-sim-menu');
 
         if (Config.DEBUG_MODE) {
             console.log('UIManager: Constructor called');
@@ -15,6 +18,8 @@ class UIManager {
     }
 
     initialize() {
+        const Config = getCurrentConfig(); // Use helper
+
         if (Config.DEBUG_MODE) console.log('UIManager: Initialize called'); // Log entry
         this.osdElement = document.getElementById('osd');
 
@@ -106,6 +111,15 @@ class UIManager {
         } else {
             this.telemetryElements.inputs.textContent = `-- / -- / -- / --`;
         }
+    }
+
+    applyConfiguration(config) {
+        if (!config) return;
+        const C = config;
+        // Update any UI elements that depend directly on config
+        // e.g., If OSD needs to show FOV, update it here.
+        // For now, just log.
+        if(C.DEBUG_MODE) console.log("UIManager: Configuration applied.");
     }
 }
 

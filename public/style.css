@@ -97,3 +97,49 @@ html, body {
     text-shadow: 1px 1px 2px black;
     z-index: 10; /* Ensure OSD is above canvas but below menus */
 }
+
+
+/* Styling for panels within the in-sim menu */
+.panel {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: rgba(70, 70, 70, 0.9); /* Slightly different background */
+    border-radius: 5px;
+    border: 1px solid #555;
+    text-align: left; /* Align panel content left */
+}
+
+.panel h3 {
+    margin-bottom: 15px;
+    text-align: center; /* Center panel titles */
+    color: #ddd;
+}
+
+.panel .back-button {
+    margin-top: 20px;
+    background-color: #777; /* Grey back button */
+    float: right; /* Position back button */
+    width: auto; /* Auto width for back button */
+    padding: 8px 15px;
+}
+
+.panel .back-button:hover {
+    background-color: #666;
+}
+
+/* Style for Apply/Save Button */
+#apply-save-button {
+    margin-top: 20px;
+    background-color: #f0ad4e; /* Orange */
+}
+#apply-save-button:hover {
+    background-color: #ec971f;
+}
+
+
+/* Ensure panel content doesn't overflow menu width */
+#in-sim-menu .menu-content {
+    max-width: 500px; /* Limit width */
+    max-height: 90vh; /* Limit height */
+    overflow-y: auto; /* Add scroll if content exceeds height */
+}

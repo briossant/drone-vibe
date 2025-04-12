@@ -17,6 +17,13 @@ class Renderer {
         }
     }
 
+    applyConfiguration(config) {
+        if (!config) return;
+        const C = config;
+        // Apply physics-related settings later (e.g., gravity if made configurable)
+        if(C.DEBUG_MODE) console.log("PhysicsEngine: Configuration applied."); // Add log
+    }
+
     initialize(canvas) {
         if (!canvas) {
             console.error("Renderer: Canvas element not provided!");
