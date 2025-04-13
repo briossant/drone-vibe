@@ -1,11 +1,11 @@
 // src/states/LoadingState.js
-import { BaseState } from '../StateManager.js';
-import MenuManager from '../MenuManager.js';
-import AssetLoader from '../AssetLoader.js';
-import ConfigManager from '../ConfigManager.js';
-import SimulatorEngine from '../SimulatorEngine.js'; // Need the class definition
-import EventBus, { EVENTS } from '../EventBus.js';
-import StateManager from '../StateManager.js';
+import { BaseState } from '../managers/StateManager.js';
+import MenuManager from '../ui/MenuManager.js';
+import AssetLoader from '../utils/AssetLoader.js';
+import ConfigManager from '../config/ConfigManager.js';
+import SimulatorEngine from '../core/SimulatorEngine.js'; // Need the class definition
+import EventBus, { EVENTS } from '../utils/EventBus.js';
+import StateManager from '../managers/StateManager.js';
 import SimulatingState from './SimulatingState.js';
 import MenuState from './MenuState.js'; // For error fallback
 

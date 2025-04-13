@@ -1,14 +1,14 @@
 // src/Renderer.js
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'; // Import OrbitControls
-import Config from './Config.js';
-import ConfigManager, { getCurrentConfig } from './ConfigManager.js'; // Use ConfigManager
+import Config from '../config/Config.js';
+import ConfigManager, { getCurrentConfig } from '../config/ConfigManager.js'; // Use ConfigManager
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'; // << NEW
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';     // << NEW
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'; // << NEW
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';         // << NEW
 import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
-import EventBus, {EVENTS} from "./EventBus.js";     // << NEW
+import EventBus, {EVENTS} from "../utils/EventBus.js";     // << NEW
 
 
 class Renderer {

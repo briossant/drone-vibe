@@ -1,5 +1,5 @@
 // src/StateManager.js
-import EventBus, { EVENTS } from './EventBus.js';
+import EventBus, { EVENTS } from '../utils/EventBus.js';
 
 class StateManager {
     constructor(initialStateClass, context = {}) {

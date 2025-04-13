@@ -1,6 +1,6 @@
 // src/MenuManager.js
-import EventBus, { EVENTS } from './EventBus.js';
-import ConfigManager from './ConfigManager.js';
+import EventBus, { EVENTS } from '../utils/EventBus.js';
+import ConfigManager from '../config/ConfigManager.js';
 import UIComponentFactory from './UIComponentFactory.js'; // Import the factory
 
 class MenuManager {

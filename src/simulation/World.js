@@ -2,8 +2,8 @@
 import * as THREE from 'three';
 // Access CANNON via window object
 import * as CANNON from 'cannon-es'; // <<<--- ADD THIS IMPORT
-import Config from './Config.js';
-import AssetLoader from './AssetLoader.js'; // Import loader instance
+import Config from '../config/Config.js';
+import AssetLoader from '../utils/AssetLoader.js'; // Import loader instance
 
 class World {
     constructor(engine) {

@@ -1,8 +1,8 @@
 // src/states/MenuState.js
-import { BaseState } from '../StateManager.js';
-import MenuManager from '../MenuManager.js';
-import EventBus, { EVENTS } from '../EventBus.js';
-import StateManager from '../StateManager.js'; // Import singleton instance
+import { BaseState } from '../managers/StateManager.js';
+import MenuManager from '../ui/MenuManager.js';
+import EventBus, { EVENTS } from '../utils/EventBus.js';
+import StateManager from '../managers/StateManager.js'; // Import singleton instance
 import LoadingState from './LoadingState.js';
 
 class MenuState extends BaseState {

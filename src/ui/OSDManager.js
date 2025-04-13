@@ -1,6 +1,6 @@
 // src/OSDManager.js (Refactored from UIManager.js)
-import EventBus, { EVENTS } from './EventBus.js';
-import ConfigManager from './ConfigManager.js'; // Keep if OSD needs config info
+import EventBus, { EVENTS } from '../utils/EventBus.js';
+import ConfigManager from '../config/ConfigManager.js'; // Keep if OSD needs config info
 
 class OSDManager {
     constructor() {

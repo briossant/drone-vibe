@@ -1,11 +1,11 @@
 // src/states/PausedState.js
-import { BaseState } from '../StateManager.js';
-import MenuManager from '../MenuManager.js';
-import StateManager from '../StateManager.js';
+import { BaseState } from '../managers/StateManager.js';
+import MenuManager from '../ui/MenuManager.js';
+import StateManager from '../managers/StateManager.js';
 import SimulatingState from './SimulatingState.js';
 import MenuState from './MenuState.js'; // For return to main menu
-import EventBus, { EVENTS } from '../EventBus.js';
-import ConfigManager from '../ConfigManager.js';
+import EventBus, { EVENTS } from '../utils/EventBus.js';
+import ConfigManager from '../config/ConfigManager.js';
 
 
 class PausedState extends BaseState {

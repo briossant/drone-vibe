@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'; // Optional, but common for compressed GLTF
-import Config from './Config.js';
+import Config from '../config/Config.js';
 
 class AssetLoader {
     constructor() {

@@ -1,10 +1,10 @@
 // src/Drone.js
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import AssetLoader from './AssetLoader.js';
-import {getCurrentConfig} from "./ConfigManager.js"; // Import loader instance
+import AssetLoader from '../utils/AssetLoader.js';
+import {getCurrentConfig} from "../config/ConfigManager.js"; // Import loader instance
 import FlightController from './FlightController.js';
-import EventBus, {EVENTS} from "./EventBus.js";     // << NEW
+import EventBus, {EVENTS} from "../utils/EventBus.js";     // << NEW
 
 // Reuse Vec3 instances for torque calculations to reduce garbage collection
 const euler = new THREE.Euler(); // Create once, reuse

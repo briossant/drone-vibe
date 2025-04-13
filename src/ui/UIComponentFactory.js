@@ -1,6 +1,6 @@
 // src/UIComponentFactory.js
-import ConfigManager from './ConfigManager.js';
-import EventBus, { EVENTS } from './EventBus.js'; // Might need to emit events on change
+import ConfigManager from '../config/ConfigManager.js';
+import EventBus, { EVENTS } from '../utils/EventBus.js'; // Might need to emit events on change
 
 /** Creates a container div for a setting item */
 function createSettingItem(labelText) {

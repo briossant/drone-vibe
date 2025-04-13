@@ -1,10 +1,10 @@
 // src/main.js (Simplified Orchestrator)
-import StateManager from './StateManager.js';
-import MenuManager from './MenuManager.js';
-import OSDManager from './OSDManager.js';
-import EventBus, { EVENTS } from './EventBus.js';
-import ConfigManager from './ConfigManager.js';
-import InputManager from './InputManager.js'; // Still need for global listeners
+import StateManager from './managers/StateManager.js';
+import MenuManager from './ui/MenuManager.js';
+import OSDManager from './ui/OSDManager.js';
+import EventBus, { EVENTS } from './utils/EventBus.js';
+import ConfigManager from './config/ConfigManager.js';
+import InputManager from './managers/InputManager.js'; // Still need for global listeners
 // Import initial state
 import MenuState from './states/MenuState.js';
 

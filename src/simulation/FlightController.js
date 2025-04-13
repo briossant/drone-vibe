@@ -1,7 +1,7 @@
 // src/FlightController.js
 import * as CANNON from 'cannon-es';
-import { getCurrentConfig } from './ConfigManager.js';
-import { clamp } from './Utils.js'; // Assuming clamp is in Utils
+import { getCurrentConfig } from '../config/ConfigManager.js';
+import { clamp } from '../utils/Utils.js'; // Assuming clamp is in Utils
 
 // Simple PID Controller Implementation
 class PIDController {

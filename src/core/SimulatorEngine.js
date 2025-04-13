@@ -1,14 +1,14 @@
 // src/SimulatorEngine.js
-import { getCurrentConfig } from './ConfigManager.js';
+import { getCurrentConfig } from '../config/ConfigManager.js';
 import Renderer from './Renderer.js';
 import PhysicsEngine from './PhysicsEngine.js';
-import InputManager from './InputManager.js';
-import Drone from './Drone.js';
-import World from './World.js';
-import { clamp } from './Utils.js';
-import AssetLoader from './AssetLoader.js';
+import InputManager from '../managers/InputManager.js';
+import Drone from '../simulation/Drone.js';
+import World from '../simulation/World.js';
+import { clamp } from '../utils/Utils.js';
+import AssetLoader from '../utils/AssetLoader.js';
 import * as CANNON from 'cannon-es';
-import EventBus, {EVENTS} from "./EventBus.js"; // Keep CANNON import for Vec3
+import EventBus, {EVENTS} from "../utils/EventBus.js"; // Keep CANNON import for Vec3
 
 
 class SimulatorEngine {
