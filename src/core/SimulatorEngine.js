@@ -220,8 +220,6 @@ class SimulatorEngine {
         }
     }
 
-
-    // --- Cleanup Method ---
     dispose() {
         const config = getCurrentConfig();
         if (config.DEBUG_MODE) console.log('SimulatorEngine: Disposing resources...');
@@ -235,10 +233,12 @@ class SimulatorEngine {
 
 
         // Dispose modules in reverse order of initialization (roughly)
-        this.inputManager?.dispose(); // InputManager is singleton, careful with dispose logic if reused
+        // REMOVE THIS LINE:
+        // this.inputManager?.dispose(); // InputManager is singleton, careful with dispose logic if reused
+
         this.world?.dispose();
         this.renderer?.dispose(); // Renderer dispose handles canvas listeners etc.
-        this.physicsEngine = null; // PhysicsEngine might not need explicit dispose beyond clearing bodies
+        // PhysicsEngine might not need explicit dispose beyond clearing bodies
 
         // Clear physics world bodies (more robust cleanup)
         if (this.physicsEngine?.world) {
@@ -269,7 +269,6 @@ class SimulatorEngine {
         // Reset references
         this.drone = null; // Allow garbage collection
         this.world = null;
-        // this.inputManager = null; // Singleton, keep instance
         this.physicsEngine = null;
         this.renderer = null;
 

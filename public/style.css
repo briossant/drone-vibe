@@ -354,13 +354,19 @@ html, body {
 #osd {
     position: fixed; top: 15px; left: 15px;
     color: var(--text-primary);
-    background-color: rgba(var(--bg-primary), 0.6); /* Darker, theme-based */
+    /* MODIFIED: Slightly reduce alpha to let more blur show through */
+    background-color: rgba(var(--bg-primary-rgb), 0.55); /* Was 0.6 */
     padding: 8px 12px; border-radius: 4px;
     font-size: 14px; font-family: var(--font-monospace);
     pointer-events: none;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+    /* MODIFIED: Slightly stronger text shadow for readability */
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.85); /* Was 0.7 */
     z-index: 10;
-    border: 1px solid rgba(255, 255, 255, 0.1); /* Subtle border */
+    border: 1px solid var(--border-color);
+    /* --- NEW --- Add backdrop filter --- */
+    -webkit-backdrop-filter: blur(5px) saturate(110%); /* Prefix for Safari */
+    backdrop-filter: blur(5px) saturate(110%); /* Adjust blur amount & saturation as needed */
+    /* --- END NEW --- */
 }
 #osd p { margin-bottom: 4px; }
 #osd strong#osd-armed[style*="lightgreen"] { color: var(--accent-secondary); } /* Themed armed color */

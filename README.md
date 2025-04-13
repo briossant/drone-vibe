@@ -8,7 +8,7 @@ A web-based FPV (First-Person View) drone simulator built using Three.js and can
 *   **Separation of Concerns:** Key responsibilities like rendering (Three.js), physics simulation (cannon-es), input handling, UI management (Menus, OSD), state management, configuration, asset loading, and flight control are kept distinct.
 *   **Event-Driven Communication:** Utilizes a central `EventBus` (Observer pattern) for loose coupling between modules. Modules communicate by emitting and listening to events rather than direct calls.
 *   **State Management:** A dedicated `StateManager` controls the application's flow using the State pattern, encapsulating behavior specific to each state (Menu, Loading, Simulating, Paused).
-*   **Configuration Driven:** Key simulation parameters (drone physics, control sensitivity, graphics settings, **FPV camera angle**, **world generation**) are managed via a configuration system (`ConfigManager`), allowing for easier tuning and user customization through `localStorage`.
+*   **Configuration Driven:** Key simulation parameters (drone physics, control sensitivity, graphics settings, **FPV camera angle**, **world generation**) are managed via a configuration system (`ConfigManager`), allowing for easier tuning and user customization through `localStorage` **with auto-saving**.
 *   **Performance:** Performance considerations are kept in mind, especially regarding physics calculations (Heightfield, potential InstancedMesh) and rendering optimizations.
 
 ## Key Features
@@ -20,9 +20,14 @@ A web-based FPV (First-Person View) drone simulator built using Three.js and can
     *   Procedurally placed props (Trees, Rocks - using placeholder geometry currently)
     *   Procedurally placed Racing Gates
 *   Configurable FPV Camera (Field of View, **Upward Tilt Angle**)
-*   On-Screen Display (OSD) for real-time telemetry.
+*   On-Screen Display (OSD) for real-time telemetry **with blurred background**.
 *   Keyboard & Gamepad Support (Mode 2 Mapping, Configurable Deadzone/Inversion)
-*   Pause Menu & In-Simulation Settings Configuration (Graphics, Fly, Physics, Controls) saved to `localStorage`.
+*   **Modernized In-Simulation Pause Menu:**
+    *   Blurred background (`backdrop-filter`) effect.
+    *   Sidebar navigation for main actions (Resume, Restart, Settings, Controls, Main Menu).
+    *   Tabbed content area for Settings and Controls categories.
+    *   Custom-styled controls (sliders, toggle switches).
+    *   **Auto-saving of settings** to `localStorage` upon change.
 *   Basic Visual Feedback (Shadows, Collision Camera Shake, Optional Post-Processing Effects).
 
 ## Architecture Design
@@ -42,7 +47,7 @@ The simulator is built around several key components communicating primarily via
 Key components and their responsibilities:
 
 1.  **`src/main.js` (Application Entry Point & Orchestrator):**
-    *   Initializes core managers (`ConfigManager`, `MenuManager`, `OSDManager`, `InputManager`, `StateManager`, `EventBus`).
+    *   Initializes core managers (`ConfigManager`, `MenuManager`, `OSDManager`, `InputManager`, `StateManager`, `EventBus`, `AudioListener`).
     *   Sets up global browser event listeners (e.g., for pointer lock changes, Escape key) and delegates them to the `StateManager` or `EventBus`.
     *   Kicks off the initial application state via the `StateManager` (starting in `MenuState`).
     *   Contains the minimal application loop for updating the `StateManager`.
@@ -58,139 +63,154 @@ Key components and their responsibilities:
     *   Uses dedicated state classes (e.g., `MenuState`, `LoadingState`, `SimulatingState`, `PausedState` located in `src/states/`) which encapsulate state-specific behavior and transitions.
     *   Handles transitions between states, calling `enter()` and `exit()` methods on state classes.
     *   Delegates handling of relevant global events (like 'Escape' key, pointer lock changes) to the *current* state object.
+    *   Provides shared `context` object to states (e.g., `simulatorEngine`, `audioListener`).
 
 4.  **`src/ui/MenuManager.js` (UI Manager - Menus & Overlays):**
     *   A singleton manager responsible for controlling the visibility and interaction of all primary UI elements *except* the OSD.
-    *   Manages the Main Menu, Loading Indicator, In-Simulation Menu/Panels, and Fade Overlay.
-    *   Listens for user interactions (button clicks) within its managed elements.
+    *   Manages the Main Menu, Loading Indicator, **reworked In-Simulation Menu**, and Fade Overlay.
+    *   **Handles the new In-Sim Menu structure:** Sidebar navigation clicks (activating views like Settings/Controls), sub-navigation tab clicks (activating specific content panels).
+    *   Listens for user interactions (button clicks) within its managed elements (e.g., Resume, Restart, Main Menu).
     *   Emits application-level events via the `EventBus` in response to user actions (e.g., `EVENTS.FLY_BUTTON_CLICKED`, `EVENTS.RESUME_BUTTON_CLICKED`).
-    *   Uses `src/ui/UIComponentFactory.js` to dynamically create settings controls (sliders, checkboxes) within the panels.
+    *   Uses `src/ui/UIComponentFactory.js` to dynamically create settings controls (sliders, toggles) within the content panels.
+    *   **(No longer manages Apply/Save logic).**
+    *   Periodically updates Gamepad status display when Controls view is active.
 
 5.  **`src/ui/OSDManager.js` (UI Manager - On-Screen Display):**
     *   A singleton manager focused *solely* on the On-Screen Display (OSD) telemetry overlay.
-    *   Initializes the OSD HTML structure.
+    *   Initializes the OSD HTML structure and applies styles (including background blur).
     *   Listens for `EVENTS.SIMULATION_STATE_UPDATE` emitted by the `SimulatorEngine`.
-    *   Updates the OSD DOM elements with real-time telemetry data (attitude, altitude, speed, inputs, armed status) based on the received simulation state.
+    *   Updates the OSD DOM elements with real-time telemetry data.
 
 6.  **`src/config/ConfigManager.js` (Configuration):**
     *   Singleton manager for loading/saving settings.
     *   Loads user settings from `localStorage` on startup, merging them with `src/config/defaultConfig.js`.
     *   Provides the current, merged configuration (`getCurrentConfig()`) to all modules.
-    *   Saves user settings back to `localStorage` (triggered by `EVENTS.APPLY_SETTINGS_CLICKED`).
-    *   Applies configuration changes to relevant engine modules (`applySettingsToEngine`), typically triggered after loading or saving.
-    *   May emit `EVENTS.CONFIG_UPDATED` after changes are applied.
+    *   **Handles Auto-Saving:** The `updateUserSetting` method, typically called by UI controls, now immediately updates the setting in memory, **saves the entire user configuration to `localStorage`**, and triggers `applySettingsToEngine` to apply the change live.
+    *   Applies configuration changes to relevant engine modules (`applySettingsToEngine`).
+    *   **(No longer listens for or handles `EVENTS.APPLY_SETTINGS_CLICKED`).**
+    *   May emit `EVENTS.CONFIG_UPDATED` or `EVENTS.SETTINGS_APPLIED` after changes are applied.
+    *   Provides `resetToDefaults` method for resetting categories.
 
 7.  **`src/core/SimulatorEngine.js` (Core Loop & Simulation Coordinator):**
     *   Manages the main `requestAnimationFrame` loop for the simulation.
     *   Initializes and holds references to core simulation modules (`Renderer`, `PhysicsEngine`, `Drone`, `World`). Relies on `InputManager` singleton.
     *   Orchestrates updates between modules *only when not paused*.
-    *   Listens for control events via `EventBus` (e.g., `EVENTS.SIM_PAUSE_REQUESTED`, `EVENTS.SIM_RESET_REQUESTED`, `EVENTS.ARM_DISARM_TOGGLE_REQUESTED`) and calls appropriate internal methods (`pause()`, `resume()`, `restartFlight()`, `toggleArmDisarm()`).
-    *   Emits `EVENTS.SIMULATION_STATE_UPDATE` via `EventBus` each frame with current drone and input data.
+    *   Listens for control events via `EventBus` (e.g., `EVENTS.SIM_PAUSE_REQUESTED`, `EVENTS.SIM_RESET_REQUESTED`, `EVENTS.ARM_DISARM_TOGGLE_REQUESTED`) and calls appropriate internal methods.
+    *   Emits `EVENTS.SIMULATION_STATE_UPDATE` via `EventBus` each frame.
     *   Handles timing (delta time calculation).
     *   Manages the cleanup of simulation resources (`dispose`).
 
 8.  **`src/managers/InputManager.js` (Input Processing):**
     *   A singleton manager listening for raw keyboard and Gamepad API events.
-    *   Runs its own polling loop (`setInterval`) to process inputs independently of the simulation frame rate.
-    *   Maps raw inputs to logical drone control commands (target roll/pitch/yaw rates, thrust), considering sensitivity and deadzones from configuration.
+    *   Runs its own polling loop (`setInterval`) to process inputs independently.
+    *   Maps raw inputs to logical drone control commands.
     *   Provides the current command state via `getControls()`.
-    *   Emits action events via `EventBus` for non-movement inputs (e.g., `EVENTS.SIM_RESET_REQUESTED`, `EVENTS.ARM_DISARM_TOGGLE_REQUESTED`).
-    *   Ignores flight control inputs processing when the simulation state (managed elsewhere) indicates paused mode (or zeroes controls output).
+    *   Emits action events via `EventBus` for non-movement inputs (Arm, Reset).
+    *   Provides `getGamepadStatus()` method for UI display.
 
 9.  **`src/core/Renderer.js` (Three.js Wrapper):**
-    *   Initializes and manages `THREE.WebGLRenderer`, `THREE.Scene`, lighting, cameras, and post-processing (`EffectComposer`).
+    *   Initializes and manages `THREE.WebGLRenderer`, `THREE.Scene`, lighting, cameras, post-processing.
     *   Handles scene rendering each frame.
-    *   Listens for events like `EVENTS.DRONE_COLLISION` via `EventBus` to trigger effects (e.g., camera shake).
-    *   Applies configuration changes (e.g., FPV FOV, post-processing enables) potentially by listening to `EVENTS.SETTINGS_APPLIED` or via `ConfigManager.applySettingsToEngine`.
+    *   Listens for events like `EVENTS.DRONE_COLLISION` to trigger camera shake.
+    *   Applies configuration changes via its `applyConfiguration` method.
 
 10. **`src/core/PhysicsEngine.js` (cannon-es Wrapper):**
     *   Initializes and manages the `CANNON.World`.
     *   Steps the physics simulation when the engine is not paused.
-    *   Provides methods to add/remove `CANNON.Body` objects.
-    *   Manages synchronization between physics bodies and Three.js visuals (`syncVisuals`).
-    *   Applies configuration changes (e.g., gravity, damping) potentially by listening to `EVENTS.SETTINGS_APPLIED` or via `ConfigManager.applySettingsToEngine`.
+    *   Manages synchronization between physics bodies and Three.js visuals.
+    *   Applies configuration changes.
 
 11. **`src/simulation/Drone.js` (Drone Entity):**
     *   Represents the drone (Visual Model, Physics Body, FPV Camera).
-    *   Contains `src/simulation/FlightController.js` logic for translating controls into physics forces/torques (using PID controllers).
-    *   Handles arming/disarming state internally (triggered by engine or flight controller).
-    *   Provides state information (`getState()`) for the engine to emit.
+    *   Contains `src/simulation/FlightController.js` logic.
+    *   Handles arming/disarming state internally.
+    *   Provides state information (`getState()`) for the engine/OSD.
     *   Handles resetting position/state (`reset`).
-    *   Emits events like `EVENTS.DRONE_COLLISION` via `EventBus` (indirectly via physics callback).
-    *   Applies configuration changes (e.g., mass, damping, FOV, **FPV camera angle**) via its `applyConfiguration` method.
+    *   Applies configuration changes (e.g., mass, damping, FOV, **FPV camera angle**).
 
 12. **`src/simulation/World.js` (Environment Coordinator):**
     *   Coordinates the creation of the simulation environment.
     *   Initializes lighting and the skybox.
-    *   Instantiates and calls `src/simulation/ProceduralWorldGenerator.js` to create the actual terrain and obstacles.
-    *   (Future: Could potentially load different predefined maps or generators).
+    *   Instantiates and calls `src/simulation/ProceduralWorldGenerator.js`.
 
 13. **`src/simulation/ProceduralWorldGenerator.js` (World Builder):**
-    *   Generates the simulation environment procedurally based on configuration settings.
-    *   Creates terrain using a noise function and `CANNON.Heightfield`.
-    *   Places props (trees, rocks - currently placeholders) on the terrain.
-    *   Places racing gates algorithmically.
-    *   Adds the corresponding visual (`THREE.Mesh`/`Group`) and physics (`CANNON.Body`) representations to the `Renderer` and `PhysicsEngine`.
+    *   Generates the simulation environment procedurally based on configuration settings (terrain, props, gates).
+    *   Adds visual and physics representations to the `Renderer` and `PhysicsEngine`.
 
 14. **`src/utils/AssetLoader.js` (Asset Loading):**
-    *   Singleton utility using Three.js loaders (`GLTFLoader`, `CubeTextureLoader`, etc.) to load assets asynchronously.
-    *   Provides `preloadAssets()` method for loading essential assets during the `LoadingState`.
+    *   Singleton utility using Three.js loaders (`GLTFLoader`, `CubeTextureLoader`, `AudioLoader`) to load assets asynchronously.
+    *   Provides `preloadAssets()` method.
 
 15. **State Classes (`src/states/*.js`):**
-    *   Located in `src/states/`.
-    *   Classes like `MenuState`, `LoadingState`, `SimulatingState`, `PausedState`.
-    *   Each class extends a `BaseState` and implements `enter()` and `exit()` methods, plus state-specific event handlers (e.g., `handleEscape()`).
-    *   Contain the logic specific to what should happen when entering, exiting, or handling events within that particular application phase. Managed by `StateManager`.
+    *   Located in `src/states/`. Classes like `MenuState`, `LoadingState`, `SimulatingState`, `PausedState`.
+    *   Each class extends `BaseState` and implements `enter()` and `exit()` methods, plus state-specific event handlers (e.g., `handleEscape()`).
+    *   Managed by `StateManager`.
+
+16. **`src/ui/UIComponentFactory.js` (UI Element Builder):**
+    *   Utility module for creating standardized UI controls (sliders, toggles, display items, reset buttons) used in the settings panels.
+    *   Connects control interactions to `ConfigManager.updateUserSetting`.
 
 ## Application States
 
 The application operates in one of the following states, managed by `StateManager.js` using dedicated state classes:
 
 *   **`MenuState`:** The initial state. `MenuManager` displays the main menu. Waits for user interaction (e.g., `EVENTS.FLY_BUTTON_CLICKED`).
-*   **`LoadingState`:** Entered after fly button click. `MenuManager` displays the loading indicator. `AssetLoader` loads essential assets. `SimulatorEngine` is created and initialized (which includes `ProceduralWorldGenerator` creating the world). Transitions to `SimulatingState` on completion or `MenuState` on error.
+*   **`LoadingState`:** Entered after fly button click. `MenuManager` displays the loading indicator. `AssetLoader` loads assets. `SimulatorEngine` is created, initialized, and started. `ConfigManager` applies initial settings. Transitions to `SimulatingState` on completion or `MenuState` on error.
 *   **`SimulatingState`:** The main simulation state. `SimulatorEngine` runs its loop, physics updates, rendering occurs. `OSDManager` displays telemetry. Pointer lock is active. Handles `handleEscape` to transition to `PausedState`. Handles pointer lock loss by transitioning to `PausedState`.
-*   **`PausedState`:** Entered via Escape key or pointer lock loss from `SimulatingState`. `SimulatorEngine` loop logic is paused (physics/drone updates skip). `MenuManager` displays the in-sim pause menu. Handles events for resuming, restarting, returning to menu, or applying settings.
+*   **`PausedState`:** Entered via Escape key or pointer lock loss from `SimulatingState`. `SimulatorEngine` loop logic is paused. `MenuManager` displays the **new in-sim pause menu (sidebar layout)**. Handles events for resuming, restarting, returning to menu via sidebar buttons. **Handles Escape key:** If a settings/controls view is open (`MenuManager.isViewActive()`), it closes the view (`MenuManager.resetToDefaultView()`); otherwise, it resumes the game (transitions to `SimulatingState`). **(No longer handles Apply/Save events).**
 
 ## Data Flow Example (Simulating State Update Loop)
 
-1.  `SimulatorEngine`: Get delta time (`clampedDeltaTime`). Check if paused internally. If yes, skip steps 3-9.
-2.  `InputManager`: (Polling independently) Has updated its internal `controls` based on raw keyboard/gamepad input.
-3.  `SimulatorEngine`: Get current `controls` state from `InputManager.getControls()`.
-4.  `Drone (FC)`: Read `controls`. Calculate target rates. Use PID controllers to determine required torques based on current angular velocity. Calculate thrust force.
-5.  `Drone (FC)`: Apply forces/torques to the drone's `CANNON.Body`.
-6.  `PhysicsEngine`: Step the simulation (`world.step(physicsTimestep)`).
-7.  `PhysicsEngine`: Synchronize `THREE.Object3D` positions/orientations from `CANNON.Body` states (`syncVisuals`).
-8.  `Drone`: Update internal state (propeller animation etc.). Prepare `droneState` object.
-9.  `SimulatorEngine`: Store `droneState` and `controls` in `simulationState` object.
-10. `SimulatorEngine`: Emit `EVENTS.SIMULATION_STATE_UPDATE` with `simulationState` data via `EventBus`.
-11. `OSDManager`: (Listener) Receives `SIMULATION_STATE_UPDATE` event. Updates OSD DOM elements based on the event data.
-12. `Renderer`: Render the `THREE.Scene` using the active camera (potentially applying post-processing).
+*(This remains largely the same)*
+1.  `SimulatorEngine`: Get delta time. Check if paused. If yes, skip steps 3-9.
+2.  `InputManager`: (Polling independently) Updates internal `controls`.
+3.  `SimulatorEngine`: Get `controls` from `InputManager.getControls()`.
+4.  `Drone (FC)`: Calculates forces/torques based on `controls` and PID logic.
+5.  `Drone (FC)`: Applies forces/torques to `CANNON.Body`.
+6.  `PhysicsEngine`: Steps the simulation.
+7.  `PhysicsEngine`: Synchronizes `THREE.Object3D` from `CANNON.Body` states.
+8.  `Drone`: Updates internal state. Prepares `droneState` object.
+9.  `SimulatorEngine`: Stores `droneState` and `controls` in `simulationState`.
+10. `SimulatorEngine`: Emits `EVENTS.SIMULATION_STATE_UPDATE`.
+11. `OSDManager`: (Listener) Receives event, updates OSD DOM elements.
+12. `Renderer`: Renders the `THREE.Scene`.
 13. `SimulatorEngine`: `requestAnimationFrame` for the next loop.
 
 ## Data Flow Example (User Action - e.g., Pressing Reset Key 'R')
 
-1.  `InputManager`: Detects 'R' key press during its polling.
-2.  `InputManager`: Emits `EVENTS.SIM_RESET_REQUESTED` via `EventBus`.
-3.  `SimulatorEngine`: (Listener) Catches `EVENTS.SIM_RESET_REQUESTED` event.
-4.  `SimulatorEngine`: Calls its internal `restartFlight()` method.
-5.  `Drone`: `reset()` method is called within `restartFlight`, resetting physics, visual state, and flight controller state.
+*(This remains the same)*
+1.  `InputManager`: Detects 'R' key press.
+2.  `InputManager`: Emits `EVENTS.SIM_RESET_REQUESTED`.
+3.  `SimulatorEngine`: (Listener) Catches event.
+4.  `SimulatorEngine`: Calls internal `restartFlight()`.
+5.  `Drone`: `reset()` method is called, resetting physics, visual, and FC state.
 
-## Configuration
+## Configuration (Updated)
 
 *   User-configurable settings have defaults defined in `src/config/defaultConfig.js`.
 *   User overrides are stored in `localStorage` under the key `droneSimUserConfig`.
 *   `src/config/ConfigManager.js` (Singleton) loads/merges/provides the active configuration (`getCurrentConfig()`).
-*   Settings modified via `MenuManager`'s panels update the config in memory (`ConfigManager.updateUserSetting`).
-*   Clicking "Apply & Save" in the pause menu triggers `EVENTS.APPLY_SETTINGS_CLICKED`.
-*   `StateManager` (in `PausedState`) listens for this, calls `ConfigManager.saveConfig()` and `ConfigManager.applySettingsToEngine()`.
-*   Relevant modules (`Drone`, `Renderer`, `PhysicsEngine`, `FlightController`, etc.) have `applyConfiguration(config)` methods called by `ConfigManager.applySettingsToEngine`.
-*   New settings include:
-    *   `FPV_CAMERA_ANGLE_DEG`: Controls the default upward tilt of the FPV camera (Fly Settings).
-    *   `WORLD_GENERATION`: Parameters controlling procedural world generation (e.g., `terrainHeightScale`, `propDensity`, `gateCount`). Not currently user-editable via UI.
+*   **Auto-Saving:** Settings modified via the UI controls (sliders, toggles generated by `UIComponentFactory`) directly call `ConfigManager.updateUserSetting(keyPath, value)`.
+*   `ConfigManager.updateUserSetting` **immediately**:
+    1.  Updates the setting value in the in-memory `userConfig` object.
+    2.  Re-merges the configuration (`_mergeConfigs`).
+    3.  **Saves the updated `userConfig` object to `localStorage`.**
+    4.  Calls `ConfigManager.applySettingsToEngine` to push the updated configuration to relevant modules (Drone, Renderer, Physics, FC, InputManager), making the change take effect live.
+*   **The "Apply & Save" button and the `EVENTS.APPLY_SETTINGS_CLICKED` event have been removed.** Persistence happens automatically on change.
+*   The `resetToDefaults(categoryPath)` method in `ConfigManager` can be triggered (e.g., by UI buttons) to clear specific user overrides, save, and apply the defaults.
+*   Relevant modules (`Drone`, `Renderer`, `PhysicsEngine`, `FlightController`, `InputManager`) have `applyConfiguration(config)` methods called by `ConfigManager.applySettingsToEngine`.
+*   Example user settings include:
+    *   `FPV_CAMERA_FOV`, `FPV_CAMERA_ANGLE_DEG`
+    *   `GRAPHICS_SETTINGS` (Bloom, Vignette)
+    *   `DRONE_MASS`, `DRONE_PHYSICS_SETTINGS` (Damping)
+    *   `KEYBOARD_SENSITIVITY`, `GAMEPAD_DEADZONE`, `GAMEPAD_INVERT_AXES`, `GAMEPAD_BUTTON_MAPPING`
+    *   `FLIGHT_CONTROLLER_SETTINGS` (PID gains, Rate Limits)
+    *   `WORLD_GENERATION` (parameters controlling procedural generation)
 *   Core, non-user-configurable engine parameters remain in `src/config/Config.js`.
 
 ## Controls (Default - Gamepad Mode 2)
 
+*(This remains the same)*
 *   **Keyboard:**
     *   `W/S` or `ArrowUp/ArrowDown`: Pitch
     *   `A/D` or `ArrowLeft/ArrowRight`: Roll
@@ -198,14 +218,14 @@ The application operates in one of the following states, managed by `StateManage
     *   `Shift`: Increase Thrust
     *   `Ctrl`: Decrease Thrust
     *   `Space`: Cut Thrust (Set to 0)
-    *   `Enter`: Toggle Arm/Disarm (Handled by `InputManager` -> `EventBus` -> `SimulatorEngine`)
-    *   `R`: Reset Flight (Handled by `InputManager` -> `EventBus` -> `SimulatorEngine`)
+    *   `Enter`: Toggle Arm/Disarm
+    *   `R`: Reset Flight
 *   **Gamepad (Mode 2 - Typical):**
-    *   Right Stick X/Y: Roll/Pitch (Check `GAMEPAD_INVERT_AXES` in config)
-    *   Left Stick X/Y: Yaw/Thrust (Check `GAMEPAD_INVERT_AXES` in config)
-    *   Button mapping for Arm/Reset defined in `defaultConfig.js` (`GAMEPAD_BUTTON_MAPPING`), processed by `InputManager` -> `EventBus` -> `SimulatorEngine`. Defaults: RB/R1=Arm, LB/L1=Reset.
+    *   Right Stick X/Y: Roll/Pitch
+    *   Left Stick X/Y: Yaw/Thrust
+    *   Button mapping for Arm/Reset defined in `defaultConfig.js` (`GAMEPAD_BUTTON_MAPPING`). Defaults: RB/R1=Arm, LB/L1=Reset.
 *   **System:**
-    *   `Esc`: Toggle Pause Menu / Close Settings Panel (Handled by `StateManager` via current state).
+    *   `Esc`: Toggle Pause Menu / Close Settings/Controls View.
 
 ## Getting Started
 
@@ -216,8 +236,7 @@ The application operates in one of the following states, managed by `StateManage
     ```bash
     npx serve public
     ```
-    (If you don't have `serve` installed, run `npm install -g serve` first, or use another static server like `python -m http.server` if Python is available, though `serve` is often better for development).
+    (If you don't have `serve` installed, run `npm install -g serve` first, or use another static server).
 5.  Open your web browser and navigate to the URL provided by the server (e.g., `http://localhost:3000`).
-6.  **(Note on Procedural Generation):** The current implementation uses a simple placeholder noise function in `ProceduralWorldGenerator.js`. For more complex and varied terrain, integrating a proper noise library (like `simplex-noise`, installable via `npm install simplex-noise`) and replacing the placeholder is recommended.
 
-*(Further instructions on build processes or specific dependencies will be added as needed).*\
+*(TODO: Update screenshots in README to reflect the new menu system)*
