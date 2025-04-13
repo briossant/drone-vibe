@@ -101,9 +101,7 @@ class InputManager {
         if (event.key === 'Enter') {
             event.preventDefault();
             if (config.DEBUG_MODE) console.log("InputManager: Arm/Disarm key (Enter) pressed - Emitting event.");
-            // Define and use a specific event if needed, e.g., EVENTS.ARM_DISARM_TOGGLE_REQUESTED
-            // For now, reusing pause request for testing might be okay IF PausedState handles it specially
-            EventBus.emit(EVENTS.SIM_PAUSE_REQUESTED); // Reusing pause for arm toggle TEMPORARILY
+            EventBus.emit(EVENTS.ARM_DISARM_TOGGLE_REQUESTED);
         }
         if (event.key === 'r' || event.key === 'R') {
             event.preventDefault();
@@ -133,7 +131,7 @@ class InputManager {
         const armButtonIndex = mapping.armDisarm;
         if (armButtonIndex !== undefined && currentState[armButtonIndex] === true && prevState[armButtonIndex] === false) {
             if (config.DEBUG_MODE) console.log(`InputManager: Arm/Disarm triggered via Gamepad button ${armButtonIndex} - Emitting event`);
-            EventBus.emit(EVENTS.SIM_PAUSE_REQUESTED); // Reusing pause for arm toggle TEMPORARILY
+            EventBus.emit(EVENTS.ARM_DISARM_TOGGLE_REQUESTED);
         }
 
         const resetButtonIndex = mapping.reset;

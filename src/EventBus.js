@@ -71,6 +71,7 @@ export const EVENTS = {
     SIM_STOP_REQUESTED: 'sim_stop_requested',
     SIM_PAUSE_REQUESTED: 'sim_pause_requested',
     SIM_RESUME_REQUESTED: 'sim_resume_requested',
+    ARM_DISARM_TOGGLE_REQUESTED: 'arm_disarm_toggle_requested', // NEW
     SIM_RESET_REQUESTED: 'sim_reset_requested', // For drone reset
 
     // Simulation Internal Events

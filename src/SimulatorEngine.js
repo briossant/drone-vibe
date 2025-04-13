@@ -12,7 +12,7 @@ import EventBus, {EVENTS} from "./EventBus.js"; // Keep CANNON import for Vec3
 
 
 class SimulatorEngine {
-    constructor() {
+    constructor(context) {
         const config = getCurrentConfig(); // Get config early
 
         this.canvas = document.getElementById('webgl-canvas');
@@ -21,7 +21,8 @@ class SimulatorEngine {
         }
 
         // Core Modules
-        this.assetLoader = AssetLoader; // Assuming AssetLoader is a singleton instance
+        this.context = context || {}; 
+
         this.renderer = new Renderer(this);
         this.physicsEngine = new PhysicsEngine(this);
         this.inputManager = InputManager;
@@ -37,10 +38,20 @@ class SimulatorEngine {
 
         this._boundLoop = this.loop.bind(this); // Bind loop once
 
+        EventBus.on(EVENTS.SIM_PAUSE_REQUESTED, this.handlePauseRequest); // Use bound method
+        EventBus.on(EVENTS.SIM_RESUME_REQUESTED, this.handleResumeRequest); // Use bound method
+        EventBus.on(EVENTS.SIM_RESET_REQUESTED, this.handleResetRequest); // Use bound method
+        EventBus.on(EVENTS.ARM_DISARM_TOGGLE_REQUESTED, this.handleArmToggleRequest); // Listen for specific event
+
         if (config.DEBUG_MODE) {
             console.log('SimulatorEngine: Initialized');
         }
     }
+
+    handlePauseRequest = () => this.pause();
+    handleResumeRequest = () => this.resume();
+    handleResetRequest = () => this.restartFlight();
+    handleArmToggleRequest = () => this.toggleArmDisarm();
 
     async initialize() {
         const config = getCurrentConfig();
@@ -49,7 +60,6 @@ class SimulatorEngine {
         // Module Initialization (Order matters)
         this.renderer.initialize(this.canvas);
         this.physicsEngine.initialize();
-        this.inputManager.initialize();
         await this.world.initialize();
         await this.drone.initialize(); // Ensure drone is initialized after world/physics
 
@@ -178,6 +188,15 @@ class SimulatorEngine {
         } else {
             if (config.DEBUG_MODE) console.warn("Cannot toggle arm state: Drone not initialized.");
         }
+
+        if (!this.isPaused) {
+            const controls = this.inputManager.getControls();
+            const droneState = this.drone.getState();
+            this.simulationState.drone = droneState;
+            this.simulationState.controls = controls;
+            EventBus.emit(EVENTS.SIMULATION_STATE_UPDATE, this.simulationState);
+            if (getCurrentConfig().DEBUG_MODE) console.log("SimulatorEngine: Emitted immediate state update after arm toggle.");
+        }
     }
 
 
@@ -210,6 +229,11 @@ class SimulatorEngine {
                 // This requires a more thorough traversal (see Three.js docs)
             }
         }
+
+        EventBus.off(EVENTS.SIM_PAUSE_REQUESTED, this.handlePauseRequest);
+        EventBus.off(EVENTS.SIM_RESUME_REQUESTED, this.handleResumeRequest);
+        EventBus.off(EVENTS.SIM_RESET_REQUESTED, this.handleResetRequest);
+        EventBus.off(EVENTS.ARM_DISARM_TOGGLE_REQUESTED, this.handleArmToggleRequest); t
 
         // Reset references
         this.drone = null;

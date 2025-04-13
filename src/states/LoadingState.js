@@ -41,7 +41,7 @@ class LoadingState extends BaseState {
             // 3. Apply Initial Configuration (Engine listens for this event or is passed config)
             ConfigManager.applySettingsToEngine(this.simulatorEngine); // <<< KEEP this for now, easiest way
             if (config.DEBUG_MODE) console.log("Initial configuration applied to engine.");
-
+            this.simulatorEngine.start(); // Start the engine's internal loop!
 
             // 4. Transition to Simulating State
             // Pass the created engine instance to the next state's context

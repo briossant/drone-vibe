@@ -91,14 +91,13 @@ class OSDManager {
 
     handleAppStateChange({ newState }) {
         // Hide or show OSD based on state
-        const config = ConfigManager.getConfig(); // Use loaded config for debug check
-        if (newState === 'SimulatingState') {
-            if (config.DEBUG_MODE) console.log("OSDManager: Showing OSD for Simulating state.");
-            this.osdElement?.classList.remove('hidden');
-        } else {
-            if (config.DEBUG_MODE) console.log(`OSDManager: Hiding/Clearing OSD for state: ${newState}`);
-            this.osdElement?.classList.add('hidden');
-            this.clearOSD(); // Clear data when not simulating
+        const config = ConfigManager.getConfig();
+        console.log(`OSDManager: Received APP_STATE_CHANGED to ${newState}`); // Debug log
+
+        // Only clear data when not simulating
+        if (newState !== 'SimulatingState') {
+            if (config.DEBUG_MODE) console.log(`OSDManager: Clearing OSD data for state: ${newState}`);
+            this.clearOSD();
         }
     }
 
