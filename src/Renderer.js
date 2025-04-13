@@ -7,7 +7,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'; 
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';     // << NEW
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'; // << NEW
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';         // << NEW
-import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';     // << NEW
+import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
+import EventBus, {EVENTS} from "./EventBus.js";     // << NEW
 
 
 class Renderer {
@@ -163,6 +164,7 @@ class Renderer {
         this.vignettePass.enabled = false; // Start disabled
         this.composer.addPass(this.vignettePass);
 
+        EventBus.on(EVENTS.DRONE_COLLISION, (data) => this.triggerCameraShake(data.intensity));
 
         if (Config.DEBUG_MODE) {
             console.log('Renderer: WebGL context, Debug Camera, and OrbitControls initialized.');

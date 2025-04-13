@@ -3,12 +3,12 @@ import { getCurrentConfig } from './ConfigManager.js';
 import Renderer from './Renderer.js';
 import PhysicsEngine from './PhysicsEngine.js';
 import InputManager from './InputManager.js';
-import UIManager from './UIManager.js';
 import Drone from './Drone.js';
 import World from './World.js';
 import { clamp } from './Utils.js';
 import AssetLoader from './AssetLoader.js';
-import * as CANNON from 'cannon-es'; // Keep CANNON import for Vec3
+import * as CANNON from 'cannon-es';
+import EventBus, {EVENTS} from "./EventBus.js"; // Keep CANNON import for Vec3
 
 
 class SimulatorEngine {
@@ -24,8 +24,7 @@ class SimulatorEngine {
         this.assetLoader = AssetLoader; // Assuming AssetLoader is a singleton instance
         this.renderer = new Renderer(this);
         this.physicsEngine = new PhysicsEngine(this);
-        this.inputManager = new InputManager(this);
-        this.uiManager = new UIManager(this);
+        this.inputManager = InputManager;
         this.world = new World(this);
         this.drone = new Drone(this);
 
@@ -51,7 +50,6 @@ class SimulatorEngine {
         this.renderer.initialize(this.canvas);
         this.physicsEngine.initialize();
         this.inputManager.initialize();
-        this.uiManager.initialize();
         await this.world.initialize();
         await this.drone.initialize(); // Ensure drone is initialized after world/physics
 
@@ -71,6 +69,10 @@ class SimulatorEngine {
 
         if (config.DEBUG_MODE) console.log('SimulatorEngine: Initialization complete.');
         // Applying initial settings is now done in main.js *after* this completes
+        EventBus.on(EVENTS.SIM_PAUSE_REQUESTED, () => this.pause());
+        EventBus.on(EVENTS.SIM_RESUME_REQUESTED, () => this.resume()); // If explicit resume needed
+        EventBus.on(EVENTS.SIM_RESET_REQUESTED, () => this.restartFlight());
+        EventBus.on(EVENTS.ARM_DISARM_TOGGLE_REQUESTED, () => this.toggleArmDisarm()); // Assuming toggleArmDisarm method exists
     }
 
     start() {
@@ -154,12 +156,8 @@ class SimulatorEngine {
             // 6. Prepare State for UI/OSD
             // Store potentially needed info in one place for UI
             this.simulationState.drone = this.drone.getState();
-            this.simulationState.controls = controls; // Current controls state
-
-            // 7. Update UI (OSD)
-            // Ensure UIManager uses the simulationState object correctly
-            this.uiManager.update(this.simulationState);
-
+            this.simulationState.controls = controls;
+            EventBus.emit(EVENTS.SIMULATION_STATE_UPDATE, this.simulationState);
         }
         // --- End Main Update Cycle ---
 
@@ -216,7 +214,6 @@ class SimulatorEngine {
         // Reset references
         this.drone = null;
         this.world = null;
-        this.uiManager = null;
         this.inputManager = null;
         this.physicsEngine = null;
         this.renderer = null;

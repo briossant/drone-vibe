@@ -1,30 +1,39 @@
 // src/InputManager.js
 import { getCurrentConfig } from './ConfigManager.js';
+import EventBus, { EVENTS } from './EventBus.js';
 
 class InputManager {
-    constructor(engine) { // <<<< Make sure engine is passed and stored
-        this.engine = engine; // <<<< Store reference to the SimulatorEngine
+    constructor() { // REMOVED engine parameter
+        // Singleton Check
+        if (InputManager._instance) {
+            console.warn("InputManager: Attempted to create second instance.");
+            return InputManager._instance;
+        }
+        InputManager._instance = this;
+
         this.keys = {};
-        this.controls = { roll: 0, pitch: 0, yaw: 0, thrust: 0 };
+        this.controls = { roll: 0, pitch: 0, yaw: 0, thrust: 0.0 }; // Start thrust at 0
         this.gamepads = {};
         this.activeGamepadIndex = null;
+        this.gamepadButtonState = {};
+        this.prevGamepadButtonState = {};
+        this.pollingIntervalId = null; // ID for the polling interval
 
-        // Track button states for edge detection (press/release) per gamepad index
-        this.gamepadButtonState = {}; // { gamepadIndex: { buttonIndex: boolean } }
-        this.prevGamepadButtonState = {}; // { gamepadIndex: { buttonIndex: boolean } }
-
+        // Bind methods ONCE
         this._boundKeyDown = this.handleKeyDown.bind(this);
         this._boundKeyUp = this.handleKeyUp.bind(this);
         this._boundGamepadConnected = this.handleGamepadConnected.bind(this);
         this._boundGamepadDisconnected = this.handleGamepadDisconnected.bind(this);
+        this._boundUpdate = this.update.bind(this); // Bind update for setInterval
 
-        const initialConfig = getCurrentConfig();
-        if (initialConfig.DEBUG_MODE) {
-            console.log('InputManager: Initialized');
-        }
+        console.log('InputManager: Instance created (Singleton)');
     }
 
+    // Instance method - called by main.js
     initialize() {
+        // Prevent multiple initializations
+        if (this.isInitialized) return;
+
         window.addEventListener('keydown', this._boundKeyDown);
         window.addEventListener('keyup', this._boundKeyUp);
 
@@ -32,47 +41,105 @@ class InputManager {
         if (config.GAMEPAD_ENABLED) {
             window.addEventListener('gamepadconnected', this._boundGamepadConnected);
             window.addEventListener('gamepaddisconnected', this._boundGamepadDisconnected);
-            this.scanGamepads();
+            this.scanGamepads(); // Scan initially
             if (config.DEBUG_MODE) console.log('InputManager: Gamepad support enabled.');
         } else {
             if (config.DEBUG_MODE) console.log('InputManager: Gamepad support disabled in Config.');
         }
 
-        if (config.DEBUG_MODE) {
-            console.log('InputManager: Event listeners added.');
+        // Start polling loop AFTER listeners are added
+        this.startPolling();
+
+        this.isInitialized = true; // Mark as initialized
+        console.log('InputManager: Initialized, listeners added, polling started.');
+    }
+
+    // Internal polling loop independent of main sim loop
+    startPolling() {
+        if (this.pollingIntervalId) return; // Prevent multiple loops
+        // Poll slightly less frequently than render loop? e.g., 60 times/sec
+        this.pollingIntervalId = setInterval(this._boundUpdate, 1000 / 60); // ~60Hz polling
+        console.log("InputManager: Started input polling loop.");
+    }
+
+    stopPolling() {
+        if(this.pollingIntervalId) {
+            clearInterval(this.pollingIntervalId);
+            this.pollingIntervalId = null;
+            console.log("InputManager: Stopped input polling loop.");
         }
     }
 
-    // Main update function called by SimulatorEngine loop
-    update(isPaused = false) { // Accepts paused state from engine
+    // Update method - called by setInterval
+    update() {
         const config = getCurrentConfig();
         let gamepadInputDetected = false;
-        let processButtons = false; // Flag to track if buttons should be processed
 
-        // Poll gamepads if enabled and one is active
+        // Poll gamepads
         if (config.GAMEPAD_ENABLED && this.activeGamepadIndex !== null) {
-            gamepadInputDetected = this.pollActiveGamepad(); // Updates controls if gamepad active
-            // Only set flag to process buttons if NOT paused and gamepad is active
-            if (!isPaused && gamepadInputDetected) {
-                processButtons = true; // <<< Set flag here
+            gamepadInputDetected = this.pollActiveGamepad();
+            if (gamepadInputDetected) {
+                // Button actions processed immediately after polling confirms gamepad activity
+                this.processGamepadButtonActions();
             }
         }
 
-        // Update flight controls based on input source, ONLY if NOT paused
-        if (!isPaused) {
-            if (!gamepadInputDetected) {
-                this.updateKeyboardControls(); // Use keyboard if no gamepad input
-            }
-            // If gamepad was detected, controls were already updated in pollActiveGamepad()
-        } else {
-            // If paused, ensure flight controls are zeroed out
-            this.controls = { roll: 0, pitch: 0, yaw: 0, thrust: 0 };
+        // Update keyboard controls if no gamepad input detected this cycle
+        if (!gamepadInputDetected) {
+            this.updateKeyboardControls();
+        }
+        // InputManager now just maintains the latest 'controls' state.
+        // SimulatorEngine will call getControls() when it needs them.
+    }
+
+    // --- Event Emitters ---
+    handleKeyDown(event) {
+        this.keys[event.key] = true;
+        const config = getCurrentConfig();
+
+        // Emit events for specific non-movement keys
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            if (config.DEBUG_MODE) console.log("InputManager: Arm/Disarm key (Enter) pressed - Emitting event.");
+            // Define and use a specific event if needed, e.g., EVENTS.ARM_DISARM_TOGGLE_REQUESTED
+            // For now, reusing pause request for testing might be okay IF PausedState handles it specially
+            EventBus.emit(EVENTS.SIM_PAUSE_REQUESTED); // Reusing pause for arm toggle TEMPORARILY
+        }
+        if (event.key === 'r' || event.key === 'R') {
+            event.preventDefault();
+            if (config.DEBUG_MODE) console.log("InputManager: Reset key (R) pressed - Emitting event.");
+            EventBus.emit(EVENTS.SIM_RESET_REQUESTED);
         }
 
-        // --- Process button actions AFTER controls are potentially zeroed if paused ---
-        // --- But only if the processButtons flag was set earlier (i.e., not paused AND gamepad active) ---
-        if (processButtons) {
-            this.processGamepadButtonActions(); // <<< Call button processing here
+        // Prevent default for simulation flight keys ONLY when sim is active (pointer lock)
+        const simKeys = ['w', 's', 'a', 'd', 'q', 'e', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift', 'Control', ' '];
+        if (simKeys.includes(event.key) || simKeys.includes(event.key.toUpperCase())) {
+            // Check if pointer lock is active OR if focus is on the canvas (heuristic for active sim)
+            if (document.pointerLockElement === MenuManager.canvasElement || document.activeElement === MenuManager.canvasElement ) {
+                event.preventDefault();
+            }
+        }
+    }
+
+    processGamepadButtonActions() {
+        if (this.activeGamepadIndex === null) return;
+        const config = getCurrentConfig();
+        const gpIndex = this.activeGamepadIndex;
+        const mapping = config.GAMEPAD_BUTTON_MAPPING;
+        const currentState = this.gamepadButtonState[gpIndex];
+        const prevState = this.prevGamepadButtonState[gpIndex];
+        if (!currentState || !prevState) return;
+
+        const armButtonIndex = mapping.armDisarm;
+        if (armButtonIndex !== undefined && currentState[armButtonIndex] === true && prevState[armButtonIndex] === false) {
+            if (config.DEBUG_MODE) console.log(`InputManager: Arm/Disarm triggered via Gamepad button ${armButtonIndex} - Emitting event`);
+            EventBus.emit(EVENTS.SIM_PAUSE_REQUESTED); // Reusing pause for arm toggle TEMPORARILY
+        }
+
+        const resetButtonIndex = mapping.reset;
+        if (resetButtonIndex !== undefined && currentState[resetButtonIndex] === true && prevState[resetButtonIndex] === false) {
+            if (config.DEBUG_MODE) console.log(`InputManager: Reset triggered via Gamepad button ${resetButtonIndex} - Emitting event`);
+            EventBus.emit(EVENTS.SIM_RESET_REQUESTED);
         }
     }
 
@@ -110,43 +177,6 @@ class InputManager {
         this.controls.pitch = Math.max(-1, Math.min(1, this.controls.pitch));
         this.controls.yaw = Math.max(-1, Math.min(1, this.controls.yaw));
         this.controls.thrust = Math.max(0, Math.min(1, this.controls.thrust));
-    }
-
-    // Keyboard event handlers
-    handleKeyDown(event) {
-        this.keys[event.key] = true;
-        const config = getCurrentConfig(); // Needed for debug check
-
-        // --- NEW: Handle Arm/Disarm and Reset Keys ---
-        // Arm/Disarm Key (Using 'Enter')
-        if (event.key === 'Enter') {
-            event.preventDefault(); // Prevent default Enter behavior (e.g., button click)
-            if (this.engine) { // Ensure engine exists
-                if (config.DEBUG_MODE) console.log("InputManager: Arm/Disarm key (Enter) pressed.");
-                this.engine.toggleArmDisarm(); // Call the engine method
-            }
-        }
-
-        // Reset Key (Using 'R')
-        // Check for both 'r' and 'R' to handle Caps Lock
-        if (event.key === 'r' || event.key === 'R') {
-            event.preventDefault(); // Prevent default 'r' behavior if any
-            if (this.engine) { // Ensure engine exists
-                if (config.DEBUG_MODE) console.log("InputManager: Reset key (R) pressed.");
-                this.engine.restartFlight(); // Call the engine method
-            }
-        }
-        // --- END NEW ---
-
-
-        // Prevent default for simulation flight keys
-        const simKeys = ['w', 's', 'a', 'd', 'q', 'e', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift', 'Control', ' '];
-        if (simKeys.includes(event.key) || simKeys.includes(event.key.toUpperCase())) {
-            event.preventDefault();
-        }
-
-        // Original comment: Debug keys (R, C, Enter) are no longer handled here
-        // Now they are handled above again.
     }
 
     handleKeyUp(event) {
@@ -297,48 +327,6 @@ class InputManager {
         }
     }
 
-    // --- Process Gamepad Button Actions (Arm/Reset) ---
-    // Called from update() ONLY when NOT paused and gamepad is active
-    processGamepadButtonActions() {
-        // Ensure we have an active gamepad index and an engine reference
-        if (this.activeGamepadIndex === null || !this.engine) return;
-
-        const config = getCurrentConfig();
-        const gpIndex = this.activeGamepadIndex;
-        const mapping = config.GAMEPAD_BUTTON_MAPPING;
-
-        // Get the button states for the currently active gamepad
-        const currentState = this.gamepadButtonState[gpIndex];
-        const prevState = this.prevGamepadButtonState[gpIndex];
-
-        // Safety check: Ensure the state objects exist for this index
-        if (!currentState || !prevState) {
-            // This might happen briefly during connection/disconnection, log if needed
-            // if (config.DEBUG_MODE) console.warn("Gamepad button state missing for index", gpIndex);
-            return;
-        }
-
-        // Check for Arm/Disarm button press (rising edge: was not pressed, now is pressed)
-        const armButtonIndex = mapping.armDisarm;
-        if (armButtonIndex !== undefined &&
-            currentState[armButtonIndex] === true && // Check current state is pressed
-            prevState[armButtonIndex] === false) {    // Check previous state was not pressed
-            if (config.DEBUG_MODE) console.log(`InputManager: Arm/Disarm triggered via Gamepad button ${armButtonIndex}`);
-            // Call the toggle function on the engine instance
-            this.engine.toggleArmDisarm(); // <<< Use engine reference
-        }
-
-        // Check for Reset button press (rising edge)
-        const resetButtonIndex = mapping.reset;
-        if (resetButtonIndex !== undefined &&
-            currentState[resetButtonIndex] === true &&
-            prevState[resetButtonIndex] === false) {
-            if (config.DEBUG_MODE) console.log(`InputManager: Reset triggered via Gamepad button ${resetButtonIndex}`);
-            // Call the restart function on the engine instance
-            this.engine.restartFlight(); // <<< Use engine reference
-        }
-    }
-
 
     // Apply configuration changes
     applyConfiguration(config) {
@@ -379,4 +367,6 @@ class InputManager {
         }
     }
 }
-export default InputManager;
+
+const instance = new InputManager();
+export default instance;

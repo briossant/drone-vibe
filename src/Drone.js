@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import AssetLoader from './AssetLoader.js';
 import {getCurrentConfig} from "./ConfigManager.js"; // Import loader instance
-import FlightController from './FlightController.js'; // <<<< IMPORT
+import FlightController from './FlightController.js';
+import EventBus, {EVENTS} from "./EventBus.js";     // << NEW
 
 // Reuse Vec3 instances for torque calculations to reduce garbage collection
 const euler = new THREE.Euler(); // Create once, reuse
@@ -169,7 +170,7 @@ class Drone {
                 // console.log(`Drone Collision Detected! Impact Speed: ${impactSpeed.toFixed(2)}, Shake Intensity: ${shakeIntensity.toFixed(2)}`);
             }
             // Trigger camera shake via the engine/renderer
-            this.engine?.renderer?.triggerCameraShake(shakeIntensity); // Pass intensity
+            EventBus.emit(EVENTS.DRONE_COLLISION, { intensity: shakeIntensity });
         }
     }
 
