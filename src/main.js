@@ -1,12 +1,12 @@
 // src/main.js (Simplified Orchestrator)
-import StateManager from './managers/StateManager.js';
-import MenuManager from './ui/MenuManager.js';
-import OSDManager from './ui/OSDManager.js';
-import EventBus, { EVENTS } from './utils/EventBus.js';
-import ConfigManager from './config/ConfigManager.js';
-import InputManager from './managers/InputManager.js'; // Still need for global listeners
+import StateManager from './managers/StateManager.js';    // Updated path
+import MenuManager from './ui/MenuManager.js';        // Updated path
+import OSDManager from './ui/OSDManager.js';         // Updated path
+import EventBus, { EVENTS } from './utils/EventBus.js'; // Updated path
+import ConfigManager from './config/ConfigManager.js'; // Updated path
+import InputManager from './managers/InputManager.js';   // Updated path
 // Import initial state
-import MenuState from './states/MenuState.js';
+import MenuState from './states/MenuState.js'; // Path likely ok
 
 // --- Global Variables ---
 let sharedContext = {}; // Context object to potentially pass engine instance etc.
@@ -57,8 +57,10 @@ function initializeApp() {
 
     // --- App Flow Event Listeners (Listen to events from UI/States) ---
     EventBus.on(EVENTS.FLY_BUTTON_CLICKED, async ()  => {
+        // Dynamically import LoadingState when needed
+        const LoadingState = (await import('./states/LoadingState.js')).default;
         // Request transition to Loading state
-        StateManager.changeState(new (await import('./states/LoadingState.js')).default(StateManager, sharedContext));
+        StateManager.changeState(new LoadingState()); // Pass manager/context implicitly now
     });
 
     // No longer need direct listeners for resume, restart etc. in main.js,

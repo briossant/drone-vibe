@@ -1,7 +1,7 @@
-// src/MenuManager.js
-import EventBus, { EVENTS } from '../utils/EventBus.js';
-import ConfigManager from '../config/ConfigManager.js';
-import UIComponentFactory from './UIComponentFactory.js'; // Import the factory
+// src/ui/MenuManager.js
+import EventBus, { EVENTS } from '../utils/EventBus.js'; // Updated path
+import ConfigManager from '../config/ConfigManager.js'; // Updated path
+import UIComponentFactory from './UIComponentFactory.js'; // Import the factory (path ok)
 
 class MenuManager {
     constructor() {
@@ -114,14 +114,14 @@ class MenuManager {
     async fadeTransition(actionBetweenFades) {
         if (!this.fadeOverlay) return;
         this.fadeOverlay.classList.remove('hidden');
-        await new Promise(resolve => requestAnimationFrame(resolve));
+        await new Promise(resolve => requestAnimationFrame(resolve)); // Wait for next frame
         this.fadeOverlay.classList.add('visible');
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 300)); // Duration of fade in
 
-        if (actionBetweenFades) await actionBetweenFades();
+        if (actionBetweenFades) await actionBetweenFades(); // Perform action during black screen
 
         this.fadeOverlay.classList.remove('visible');
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 300)); // Duration of fade out
         this.fadeOverlay.classList.add('hidden');
     }
 
@@ -136,6 +136,7 @@ class MenuManager {
 
         // Handle FC Settings Content creation and insertion
         this.fcSettingsContent.id = 'fc-settings-content';
+        // Insert FC settings before Physics settings
         this.settingsPanel.insertBefore(this.fcSettingsContent, this.physicsSettingsContent);
         this.fcSettingsContent.innerHTML = '<h4>Flight Controller Settings</h4>';
 
@@ -148,12 +149,14 @@ class MenuManager {
         // Graphics
         this.graphicsSettingsContent.appendChild(createCheckbox('Enable Bloom', 'GRAPHICS_SETTINGS.enableBloom'));
         this.graphicsSettingsContent.appendChild(createCheckbox('Enable Vignette', 'GRAPHICS_SETTINGS.enableVignette'));
+        this.graphicsSettingsContent.appendChild(createSlider('FPV FOV', 70, 140, 1, 'FPV_CAMERA_FOV'));
 
-        // Fly
-        this.flySettingsContent.appendChild(createSlider('FPV FOV', 70, 140, 1, 'FPV_CAMERA_FOV'));
 
-        // Flight Controller
-        this.fcSettingsContent.appendChild(createSlider('Roll Rate P', 0, 2.0, 0.02, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.kp'));
+        // Fly Settings <<< ADD CAMERA ANGLE SLIDER HERE >>>
+        this.flySettingsContent.appendChild(createSlider('FPV Camera Angle (°)', -20, 60, 1, 'FPV_CAMERA_ANGLE_DEG'));
+
+        // Flight Controller (Example PID tuning - might add more later)
+        this.fcSettingsContent.appendChild(createSlider('Roll Rate P', 0, 2.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.kp'));
         this.fcSettingsContent.appendChild(createSlider('Roll Rate I', 0, 1.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.ki'));
         this.fcSettingsContent.appendChild(createSlider('Roll Rate D', 0, 0.2, 0.002, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.kd'));
         this.fcSettingsContent.appendChild(createSlider('Pitch Rate P', 0, 2.0, 0.02, 'FLIGHT_CONTROLLER_SETTINGS.PID.pitch.kp'));
@@ -163,11 +166,14 @@ class MenuManager {
         this.fcSettingsContent.appendChild(createSlider('Yaw Rate I', 0, 1.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.yaw.ki'));
         this.fcSettingsContent.appendChild(createSlider('Yaw Rate D', 0, 0.1, 0.002, 'FLIGHT_CONTROLLER_SETTINGS.PID.yaw.kd'));
         this.fcSettingsContent.appendChild(createSlider('PID I-Limit', 0, 1.0, 0.02, 'FLIGHT_CONTROLLER_SETTINGS.PID.iLimit'));
+        this.fcSettingsContent.appendChild(createSlider('Max Roll/Pitch Rate (°/s)', 100, 1500, 10, 'FLIGHT_CONTROLLER_SETTINGS.RATE_LIMITS.roll')); // Assuming Roll/Pitch rates are linked
+        this.fcSettingsContent.appendChild(createSlider('Max Yaw Rate (°/s)', 100, 1000, 10, 'FLIGHT_CONTROLLER_SETTINGS.RATE_LIMITS.yaw'));
+
 
         // Physics
         this.physicsSettingsContent.appendChild(createSlider('Drone Mass (kg)', 0.1, 2.0, 0.05, 'DRONE_MASS'));
-        this.physicsSettingsContent.appendChild(createSlider('Linear Damping', 0, 1, 0.05, 'DRONE_PHYSICS_SETTINGS.linearDamping'));
-        this.physicsSettingsContent.appendChild(createSlider('Angular Damping', 0, 1, 0.01, 'DRONE_PHYSICS_SETTINGS.angularDamping'));
+        this.physicsSettingsContent.appendChild(createSlider('Linear Damping', 0, 1, 0.02, 'DRONE_PHYSICS_SETTINGS.linearDamping'));
+        this.physicsSettingsContent.appendChild(createSlider('Angular Damping', 0, 1, 0.02, 'DRONE_PHYSICS_SETTINGS.angularDamping'));
 
         // Gamepad Controls
         this.gamepadSettingsContent.appendChild(createSlider('Gamepad Deadzone', 0, 0.5, 0.01, 'GAMEPAD_DEADZONE'));
@@ -207,7 +213,10 @@ class MenuManager {
             EventBus.emit(EVENTS.APPLY_SETTINGS_CLICKED);
             this.hideSettingsPanels(); // Hide panels after emitting event
         });
-        this.backButtons.forEach(button => button.addEventListener('click', () => this.hideSettingsPanels())); // Direct UI manip is okay here
+        this.backButtons.forEach(button => button.addEventListener('click', () => {
+            this.hideSettingsPanels();
+            EventBus.emit(EVENTS.BACK_BUTTON_CLICKED); // Emit back event if states need it
+        }));
 
         // Canvas Click for Pointer Lock Request
         this.canvasElement?.addEventListener('click', () => EventBus.emit(EVENTS.CANVAS_CLICKED));

@@ -1,10 +1,10 @@
-// src/Drone.js
+// src/simulation/Drone.js
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import AssetLoader from '../utils/AssetLoader.js';
-import {getCurrentConfig} from "../config/ConfigManager.js"; // Import loader instance
-import FlightController from './FlightController.js';
-import EventBus, {EVENTS} from "../utils/EventBus.js";     // << NEW
+import AssetLoader from '../utils/AssetLoader.js'; // Updated path
+import {getCurrentConfig} from "../config/ConfigManager.js"; // Updated path
+import FlightController from './FlightController.js'; // Updated path
+import EventBus, {EVENTS} from "../utils/EventBus.js"; // Updated path
 
 // Reuse Vec3 instances for torque calculations to reduce garbage collection
 const euler = new THREE.Euler(); // Create once, reuse
@@ -12,7 +12,7 @@ const euler = new THREE.Euler(); // Create once, reuse
 class Drone {
     constructor(engine) {
         const config = getCurrentConfig(); // Get config early if needed
-        this.engine = engine;
+        this.engine = engine; // Reference to SimulatorEngine
         this.visual = null;
         this.physicsBody = null;
         this.fpvCamera = null;
@@ -27,20 +27,20 @@ class Drone {
 
     // Replace procedural model with GLTF loading
     async createVisualModel() {
-        const Config = getCurrentConfig(); // Get config early if needed
+        const config = getCurrentConfig(); // Get config early if needed
 
         const gltf = AssetLoader.getModel('drone'); // Get preloaded GLTF data
         if (!gltf) {
             console.error("Drone ERROR: Failed to get preloaded 'drone' GLTF model.");
-            // Create a fallback placeholder if loading failed?
-            const fallbackGeo = new THREE.BoxGeometry(this.dimensions.bodyWidth, this.dimensions.bodyHeight, this.dimensions.bodyDepth);
+            // Create a fallback placeholder if loading failed
+            const fallbackGeo = new THREE.BoxGeometry(0.3, 0.1, 0.3); // Simplified dims
             const fallbackMat = new THREE.MeshStandardMaterial({ color: 0xff00ff }); // Bright pink error indicator
             const fallbackMesh = new THREE.Mesh(fallbackGeo, fallbackMat);
             fallbackMesh.castShadow = true; // Still cast shadow
             return fallbackMesh; // Return simple mesh instead of group
         }
 
-        const modelScene = gltf.scene; // Get the main scene group from the GLTF
+        const modelScene = gltf.scene.clone(); // Use clone to avoid modifying the cached asset
 
         // --- Configure Shadows for Loaded Model ---
         modelScene.traverse((child) => {
@@ -54,17 +54,16 @@ class Drone {
             }
         });
 
-        // Optional: Scale the model if it's not the right size
-        // const desiredRadius = Math.max(this.dimensions.bodyWidth, this.dimensions.bodyDepth) / 2 + this.dimensions.armLength;
+        // Optional: Scale the model if it's not the right size (adjust if needed)
+        // const desiredSize = 0.4; // Target overall size approx
         // const boundingBox = new THREE.Box3().setFromObject(modelScene);
         // const currentSize = boundingBox.getSize(new THREE.Vector3());
         // const maxDim = Math.max(currentSize.x, currentSize.y, currentSize.z);
-        // const scale = (desiredRadius * 2) / maxDim; // Approximate scale based on radius
+        // const scale = desiredSize / maxDim;
         // modelScene.scale.set(scale, scale, scale);
-        // console.log("Drone Model Scaled by:", scale);
+        // if (config.DEBUG_MODE) console.log("Drone Model Scaled by:", scale);
 
-
-        if (Config.DEBUG_MODE) console.log("Drone: Loaded GLTF model scene configured for shadows.");
+        if (config.DEBUG_MODE) console.log("Drone: Loaded GLTF model scene configured for shadows.");
 
         // We return the scene object from the GLTF file
         return modelScene;
@@ -73,37 +72,40 @@ class Drone {
 
 
     createPhysicsBody(initialPosition) {
-        const Config = getCurrentConfig(); // Get current config for physics settings
+        const config = getCurrentConfig(); // Get current config for physics settings
         if (!this.engine.physicsEngine.getMaterial) {
             console.error("Drone: CANNON or Physics materials not available.");
             return null;
         }
-        // Use dimensions from original Config for now unless made configurable
-        const DRONE_DIMENSIONS = { bodyWidth: 0.15, bodyHeight: 0.08, bodyDepth: 0.15, armLength: 0.18, armWidth: 0.02, propDiameter: 0.1 }; // Hardcode default dims for now
-        const d = DRONE_DIMENSIONS;
-        const bodyHalfExtents = new CANNON.Vec3(d.bodyWidth / 2, d.bodyHeight / 2, d.bodyDepth / 2);
+        // Use dimensions from config or sensible defaults
+        const droneWidth = 0.3;
+        const droneHeight = 0.08;
+        const droneDepth = 0.3;
+        const bodyHalfExtents = new CANNON.Vec3(droneWidth / 2, droneHeight / 2, droneDepth / 2);
         const bodyShape = new CANNON.Box(bodyHalfExtents);
 
         const body = new CANNON.Body({
-            mass: Config.DRONE_MASS, // <<< Use user-configurable mass
+            mass: config.DRONE_MASS, // <<< Use user-configurable mass
             position: new CANNON.Vec3(initialPosition.x, initialPosition.y, initialPosition.z),
             shape: bodyShape,
             material: this.engine.physicsEngine.getMaterial('default'),
-            linearDamping: Config.DRONE_PHYSICS_SETTINGS.linearDamping, // <<< Use user-configurable damping
-            angularDamping: Config.DRONE_PHYSICS_SETTINGS.angularDamping, // <<< Use user-configurable damping
+            linearDamping: config.DRONE_PHYSICS_SETTINGS.linearDamping, // <<< Use user-configurable damping
+            angularDamping: config.DRONE_PHYSICS_SETTINGS.angularDamping, // <<< Use user-configurable damping
         });
 
-        body.updateMassProperties(); // Calculate inertia
+        // Optional: Provide a more realistic inertia tensor if needed, otherwise CANNON estimates it
+        // body.inertia.set(ixx, 0, 0, 0, iyy, 0, 0, 0, izz); // requires calculation or estimation
+        body.updateMassProperties(); // Calculate inertia based on shape if not manually set
 
-        if (Config.DEBUG_MODE) {
+        if (config.DEBUG_MODE) {
             console.log(`Drone Physics: Mass=${body.mass.toFixed(3)}`);
-            console.log(`Drone Physics: Inertia=`, body.inertia);
+            console.log(`Drone Physics: Inertia=`, body.inertia); // CANNON calculates this
             console.log(`Drone Physics: LinearDamping=${body.linearDamping}, AngularDamping=${body.angularDamping}`); // Log damping
         }
         return body;
     }
 
-    // src/Drone.js
+    // src/simulation/Drone.js
     async initialize(initialPosition = undefined) {
         const config = getCurrentConfig();
         console.log("DEBUG: Drone.initialize() START"); // ADD
@@ -116,27 +118,35 @@ class Drone {
             this.physicsBody = this.createPhysicsBody(startPos);
 
             if (this.physicsBody) {
-                this.engine.physicsEngine.addBody(this.physicsBody, this.visual);
+                this.engine.physicsEngine.addBody(this.physicsBody, this.visual); // Link visual for sync
                 this.flightController = new FlightController(this.physicsBody);
                 this.physicsBody.addEventListener('collide', this.handleCollision.bind(this));
             } else {
                 console.error("Drone ERROR: Failed to create physics body."); // Keep this
             }
 
+            // --- FPV Camera Setup ---
             this.fpvCamera = new THREE.PerspectiveCamera(
                 config.FPV_CAMERA_FOV,
                 window.innerWidth / window.innerHeight,
                 0.1, 1000
             );
-            this.fpvCamera.position.set(0, 0.05, 0.1);
-            this.fpvCamera.rotation.set(0, 0, 0);
+            // Position relative to the drone visual center
+            this.fpvCamera.position.set(0, 0.05, 0.1); // Slightly above and forward
+
+            // *** Initial camera angle set via applyConfiguration ***
+            // this.fpvCamera.rotation.set(0, 0, 0); // Base rotation set by applyConfiguration now
+
             this.fpvCamera.name = "FPVCamera";
-            this.visual.add(this.fpvCamera);
+            this.visual.add(this.fpvCamera); // Add camera as child of drone visual
 
             this.findPropsInModel();
 
+            // Apply initial configuration (including camera angle) immediately after creation
+            this.applyConfiguration(config); // <<< Call here to set initial angle
+
             if (config.DEBUG_MODE && this.physicsBody) {
-                console.log(`Drone: Async Initialization complete at specified position. FPV FOV: ${config.FPV_CAMERA_FOV}`);
+                console.log(`Drone: Async Initialization complete. Initial FPV FOV: ${config.FPV_CAMERA_FOV}, Angle: ${config.FPV_CAMERA_ANGLE_DEG} deg`);
             } else if(config.DEBUG_MODE){
                 console.log('Drone: Async Initialization FAILED or incomplete (No physics body?).');
             }
@@ -145,7 +155,7 @@ class Drone {
             console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"); // Make error stand out
             console.error("ERROR inside Drone.initialize():", error);
             console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"); // Make error stand out
-            throw error; // Re-throw the error so main.js still catches it
+            throw error; // Re-throw the error so it's caught higher up
         }
     }
 
@@ -169,27 +179,28 @@ class Drone {
             if (config.DEBUG_MODE) {
                 // console.log(`Drone Collision Detected! Impact Speed: ${impactSpeed.toFixed(2)}, Shake Intensity: ${shakeIntensity.toFixed(2)}`);
             }
-            // Trigger camera shake via the engine/renderer
+            // Trigger camera shake via the event bus
             EventBus.emit(EVENTS.DRONE_COLLISION, { intensity: shakeIntensity });
         }
     }
 
     // Optional helper to find propeller meshes by name in the loaded model
     findPropsInModel() {
-        const Config = getCurrentConfig(); // Get config early if needed
+        const config = getCurrentConfig(); // Get config early if needed
 
         this.propellers = [];
         if (this.visual) {
             // Example: Find objects named "Propeller_FL", "Propeller_FR", etc.
+            // Adjust these names based on your actual GLTF model structure!
             const propNames = ['Propeller_FR', 'Propeller_FL', 'Propeller_BR', 'Propeller_BL']; // Adjust names!
             this.visual.traverse((child) => {
                 if (child.isMesh && propNames.includes(child.name)) {
                     this.propellers.push(child);
-                    if (Config.DEBUG_MODE) console.log(`Drone: Found propeller mesh: ${child.name}`);
+                    if (config.DEBUG_MODE) console.log(`Drone: Found propeller mesh: ${child.name}`);
                 }
             });
         }
-        if (this.propellers.length !== 4 && Config.DEBUG_MODE) {
+        if (this.propellers.length !== 4 && config.DEBUG_MODE) {
             console.warn(`Drone: Expected 4 propellers, found ${this.propellers.length}. Check model names.`);
         }
     }
@@ -203,13 +214,15 @@ class Drone {
         // Propeller Animation - Base it on FC's armed state and controls thrust
         const isArmed = this.flightController.armed; // Get armed state from FC
         if (isArmed && this.physicsBody.mass > 0 && this.propellers.length > 0) {
-            const spinSpeed = controls.thrust * 80 + (isArmed ? 15 : 0);
+            // Spin speed based roughly on thrust input + idle speed
+            const spinSpeed = controls.thrust * 80 + (isArmed ? 15 : 0); // Adjust multipliers
             this.propellers.forEach(prop => {
-                prop.rotation.y += spinSpeed * deltaTime;
+                prop.rotation.y += spinSpeed * deltaTime; // Rotate around local Y axis
             });
         } else if (!isArmed && this.propellers.length > 0) {
+            // Optional: Slow down propellers visually when disarmed
             this.propellers.forEach(prop => {
-                prop.rotation.y *= 0.90;
+                prop.rotation.y *= 0.95; // Apply damping to rotation
             });
         }
     }
@@ -217,45 +230,68 @@ class Drone {
     applyConfiguration(config) {
         if (!config) return;
         const C = config;
+        let configChanged = false;
 
-        let configChanged = false; // Track if anything changed for logging
-
+        // Apply Physics settings
         if (this.physicsBody) {
+            let physicsChanged = false;
             if (this.physicsBody.mass !== C.DRONE_MASS) {
                 this.physicsBody.mass = C.DRONE_MASS;
-                configChanged = true;
+                physicsChanged = true;
             }
             if (this.physicsBody.linearDamping !== C.DRONE_PHYSICS_SETTINGS.linearDamping) {
                 this.physicsBody.linearDamping = C.DRONE_PHYSICS_SETTINGS.linearDamping;
-                configChanged = true;
+                physicsChanged = true;
             }
             if (this.physicsBody.angularDamping !== C.DRONE_PHYSICS_SETTINGS.angularDamping) {
                 this.physicsBody.angularDamping = C.DRONE_PHYSICS_SETTINGS.angularDamping;
-                configChanged = true;
+                physicsChanged = true;
             }
-            if (configChanged) {
+            if (physicsChanged) {
                 this.physicsBody.updateMassProperties(); // Recalculate inertia if mass/shape potentially changes
                 if(C.DEBUG_MODE) console.log("Drone: Applied physics config changes (Mass/Damping). Recalculated mass props.");
+                configChanged = true;
             }
         }
 
-        let cameraChanged = false;
+        // Apply Camera settings
         if (this.fpvCamera) {
+            let cameraChanged = false;
             if (this.fpvCamera.fov !== C.FPV_CAMERA_FOV) {
                 this.fpvCamera.fov = C.FPV_CAMERA_FOV;
                 this.fpvCamera.updateProjectionMatrix(); // IMPORTANT! Apply FOV change
                 cameraChanged = true;
                 if(C.DEBUG_MODE) console.log("Drone: Applied FPV Camera FOV change.");
             }
+
+            // <<< NEW: Apply FPV Camera Angle >>>
+            const targetAngleRad = THREE.MathUtils.degToRad(C.FPV_CAMERA_ANGLE_DEG);
+            if (this.fpvCamera.rotation.x !== targetAngleRad) {
+                // Set the LOCAL X-axis rotation of the camera relative to the drone body
+                this.fpvCamera.rotation.set(targetAngleRad, 0, 0, 'YXZ'); // Use Euler order if needed
+                cameraChanged = true;
+                if(C.DEBUG_MODE) console.log(`Drone: Applied FPV Camera Angle: ${C.FPV_CAMERA_ANGLE_DEG} deg`);
+            }
+            // <<< END NEW >>>
+
+            if (cameraChanged) configChanged = true;
         }
 
+        // Apply Flight Controller settings
         if (this.flightController) {
             this.flightController.applyConfiguration(config); // Pass the whole config
             if (C.DEBUG_MODE) console.log("Drone: Applied config to FlightController.");
+            configChanged = true; // Assume FC config might change
         } else if (C.DEBUG_MODE) {
             console.warn("Drone.applyConfiguration: FlightController not initialized yet.");
         }
+
+        // Log if any configuration actually changed
+        if (configChanged && C.DEBUG_MODE) {
+            // console.log("Drone: Configuration successfully applied.");
+        }
     }
+
 
     arm() {
         if (this.flightController) {
@@ -283,11 +319,14 @@ class Drone {
     getState() {
         if (!this.physicsBody) return null;
 
+        const config = getCurrentConfig();
         const speed = this.physicsBody.velocity.length();
-        euler.setFromQuaternion(this.physicsBody.quaternion, 'YXZ');
-        const pitchDeg_Corrected = euler.x * 180 / Math.PI;
-        const yawDeg_Corrected = euler.y * 180 / Math.PI;
-        const rollDeg_Corrected = euler.z * 180 / Math.PI;
+
+        // Calculate Euler angles from quaternion (ensure correct order 'YXZ' common for FPS/Vehicles)
+        euler.setFromQuaternion(this.physicsBody.quaternion, 'YXZ'); // Store in reused euler object
+        const pitchDeg = THREE.MathUtils.radToDeg(euler.x); // Pitch around X
+        const yawDeg = THREE.MathUtils.radToDeg(euler.y);   // Yaw around Y
+        const rollDeg = THREE.MathUtils.radToDeg(euler.z);  // Roll around Z
 
         return {
             position: this.physicsBody.position.clone(),
@@ -296,10 +335,10 @@ class Drone {
             armed: this.flightController ? this.flightController.armed : false, // <<<< Get from FC
             speed: speed,
             altitude: this.physicsBody.position.y,
-            euler: {
-                roll: rollDeg_Corrected,
-                pitch: pitchDeg_Corrected,
-                yaw: yawDeg_Corrected,
+            euler: { // Return degrees, common for display
+                roll: rollDeg,
+                pitch: pitchDeg,
+                yaw: yawDeg,
             }
         };
     }
@@ -307,28 +346,29 @@ class Drone {
     reset(position = undefined) {
         if (!this.physicsBody || !this.visual) return;
 
-        const Config = getCurrentConfig();
-        const resetPos = position || Config.DRONE_START_POSITION;
+        const config = getCurrentConfig();
+        const resetPos = position || config.DRONE_START_POSITION;
 
-        this.disarm();
+        this.disarm(); // Ensure drone is disarmed on reset
 
         // Reset Physics State using the provided or config position
         this.physicsBody.position.set(resetPos.x, resetPos.y, resetPos.z);
         this.physicsBody.velocity.set(0, 0, 0);
         this.physicsBody.angularVelocity.set(0, 0, 0);
-        this.physicsBody.quaternion.setFromEuler(0, 0, 0);
+        this.physicsBody.quaternion.setFromEuler(0, 0, 0); // Reset orientation
         this.physicsBody.force.set(0, 0, 0);
         this.physicsBody.torque.set(0, 0, 0);
+        this.physicsBody.sleepState = 0; // Explicitly wake up the body
         this.physicsBody.wakeUp(); // Ensure body is awake after reset
 
-        // Reset Visual State Immediately
-        // Use copy for Vec3 and Quaternion
+        // Reset Visual State Immediately to match physics
         this.visual.position.copy(this.physicsBody.position);
         this.visual.quaternion.copy(this.physicsBody.quaternion);
 
+        // Reset Flight Controller internal state (like PID integrals)
         this.flightController?.reset(); // Call FC's reset method if it exists
 
-        if (Config.DEBUG_MODE) console.log(`Drone Reset to position: (${resetPos.x}, ${resetPos.y}, ${resetPos.z})`);
+        if (config.DEBUG_MODE) console.log(`Drone Reset to position: (${resetPos.x.toFixed(2)}, ${resetPos.y.toFixed(2)}, ${resetPos.z.toFixed(2)})`);
     }
 }
 

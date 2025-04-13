@@ -66,15 +66,8 @@ class ConfigManager {
             }
         };
 
+        merge(this.mergedConfig, Config);
         merge(this.mergedConfig, this.userConfig);
-
-        // Also merge in essential non-user-configurable values from the original Config.js
-        // These should NOT be overrideable by userConfig saving/loading defaults
-        this.mergedConfig.DEBUG_MODE = Config.DEBUG_MODE;
-        this.mergedConfig.PHYSICS_TIMESTEP = Config.PHYSICS_TIMESTEP;
-        this.mergedConfig.GRAVITY = Config.GRAVITY;
-        this.mergedConfig.DRONE_START_POSITION = Config.DRONE_START_POSITION;
-        // Add any other fixed values needed globally from Config.js
 
         // Maybe log the final merged config if needed for debugging
         // if (this.mergedConfig.DEBUG_MODE) console.log("Final Merged Config:", this.mergedConfig);

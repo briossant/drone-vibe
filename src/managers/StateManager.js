@@ -1,43 +1,62 @@
-// src/StateManager.js
-import EventBus, { EVENTS } from '../utils/EventBus.js';
+// src/managers/StateManager.js
+import EventBus, { EVENTS } from '../utils/EventBus.js'; // Updated path
 
 class StateManager {
-    constructor(initialStateClass, context = {}) {
+    constructor() { // Removed initialStateClass and context from constructor for Singleton
         this.currentState = null;
-        this.context = context; // Allow passing shared resources (like engine, ui) if needed
+        this.context = {}; // Initialize context object
         if (StateManager._instance) {
+            console.warn("StateManager: Attempted to create second instance.");
             return StateManager._instance;
         }
         StateManager._instance = this;
         console.log("StateManager: Initialized (Singleton)");
     }
 
-    // Optional: Method to set context after creation if needed by states
+    // Method to set context after creation if needed by states
     setContext(context) {
-        this.context = context;
+        // Merge provided context with existing context
+        this.context = { ...this.context, ...context };
     }
 
     changeState(newStateInstance) {
         const oldStateName = this.currentState ? this.currentState.constructor.name : 'None';
+
+        // Exit current state
         if (this.currentState && typeof this.currentState.exit === 'function') {
             try {
                 this.currentState.exit();
             } catch(e){ console.error(`Error exiting state ${oldStateName}:`, e)}
+        } else if (this.currentState) {
+            // console.log(`StateManager: State ${oldStateName} has no exit() method.`);
         }
 
-        const newStateName = newStateInstance.constructor.name;
-        // Ensure the new state instance has access to the manager and context
-        newStateInstance.manager = this; // Assign manager reference
-        newStateInstance.context = this.context; // Assign context reference
+        const newStateName = newStateInstance ? newStateInstance.constructor.name : 'None';
+        if (!newStateInstance) {
+            console.error("StateManager: Attempted to change to a null state!");
+            this.currentState = null;
+            return;
+        }
+
+        // Assign manager and context to the new state
+        newStateInstance.manager = this; // Use the singleton instance
+        newStateInstance.context = this.context; // Assign current context
 
         this.currentState = newStateInstance;
-        console.log(`StateManager: Transitioning to state: ${newStateName}`);
+        console.log(`StateManager: Transitioning from ${oldStateName} to state: ${newStateName}`);
 
-
+        // Enter new state
         if (typeof this.currentState.enter === 'function') {
             try {
-                this.currentState.enter();
-            } catch(e) {console.error(`Error entering state ${newStateName}:`, e)}
+                // Use Promise.resolve to handle both sync and async enter methods
+                Promise.resolve(this.currentState.enter()).catch(e => {
+                    console.error(`Error during async enter of state ${newStateName}:`, e);
+                    // Potentially transition to an error state or back to menu
+                });
+            } catch(e) {
+                console.error(`Error entering state ${newStateName}:`, e);
+                // Potentially transition to an error state or back to menu
+            }
         } else {
             console.warn(`StateManager: State ${newStateName} has no enter() method.`);
         }
@@ -49,6 +68,8 @@ class StateManager {
     handleEscape() {
         if (this.currentState && typeof this.currentState.handleEscape === 'function') {
             this.currentState.handleEscape();
+        } else {
+            // console.log(`StateManager: Current state ${this.currentState?.constructor.name} does not handle Escape.`);
         }
     }
 
@@ -72,22 +93,28 @@ class StateManager {
     }
 }
 
-// Export a single instance creation function or the class directly
-// Depending on whether context needs to be passed during creation
-// export default StateManager;
-const instance = new StateManager(null); // Initialize without state here
-export default instance; // Export singleton instance
+// Export singleton instance directly
+const instance = new StateManager();
+export default instance;
 
 // Define Base State (Optional but good practice)
 export class BaseState {
     constructor() {
-        this.manager = null; // Reference to the StateManager
-        this.context = null; // Shared context (engine, uiManager etc.)
+        /** @type {StateManager | null} */
+        this.manager = null; // Reference to the StateManager singleton
+        /** @type {object} */
+        this.context = {}; // Shared context (engine, uiManager etc.)
     }
+    /** Called when entering the state. Can be async. */
     enter() {}
+    /** Called when exiting the state. */
     exit() {}
+    /** Called every frame if the state requires updates. */
     update(deltaTime) {}
+    /** Handles the Escape key press. */
     handleEscape() {}
+    /** Handles pointer lock changes. @param {boolean} isLocked */
     handlePointerLockChange(isLocked) {}
+    /** Handles clicks on the main canvas. */
     handleCanvasClick() {}
 }

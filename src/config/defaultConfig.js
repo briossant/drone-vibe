@@ -5,6 +5,7 @@
 const defaultConfig = {
     // Graphics/Renderer Settings
     FPV_CAMERA_FOV: 110,
+    FPV_CAMERA_ANGLE_DEG: 30,
     GRAPHICS_SETTINGS: {
         enableBloom: false,
         // bloomStrength: 0.5, // Add if making configurable
@@ -76,11 +77,21 @@ const defaultConfig = {
 
     // Drone Control Multipliers (These are now less direct, acting more as limits/scaling for PID output or direct thrust)
     DRONE_CONTROL_MULTIPLIERS: {
-        MAX_THRUST: 26.0, // Thrust remains direct for now
+        MAX_THRUST: 30.0, // Thrust remains direct for now
         // Torque values are now primarily used as OUTPUT LIMITS for the PID controllers
-        PITCH_TORQUE: 0.05, // Rename/repurpose? Represents a scale/limit. Tune this!
-        ROLL_TORQUE: 0.05,
-        YAW_TORQUE: 0.03,
+        PITCH_TORQUE: 0.1, // Rename/repurpose? Represents a scale/limit. Tune this!
+        ROLL_TORQUE: 0.1,
+        YAW_TORQUE: 0.06,
+    },
+
+
+    WORLD_GENERATION: {
+        seed: 'default_seed',
+        terrainHeightScale: 10,
+        terrainNoiseScale: 0.4,
+        propDensity: 0.008,
+        gateCount: 32,
+        debugShadowCamera: false,
     },
 };
 
