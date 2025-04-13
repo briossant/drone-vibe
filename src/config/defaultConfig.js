@@ -38,10 +38,10 @@ const defaultConfig = {
         yaw: 1.0,
     },
     GAMEPAD_AXIS_MAPPING: {
-        yaw: 0,
-        thrust: 1,
-        roll: 2,
-        pitch: 3,
+        yaw: 3,
+        thrust: 2,
+        roll: 0,
+        pitch: 1,
     },
     GAMEPAD_INVERT_AXES: {
         roll: true,
@@ -61,7 +61,7 @@ const defaultConfig = {
         PID: {
             // Rate PID Gains
             roll:  { kp: 0.26, ki: 0.05, kd: 0.01 },
-            pitch: { kp: 0.26, ki: 0.05, kd: 0.01 }, // Often same as roll initially
+            pitch: { kp: 0.16, ki: 0.05, kd: 0.01 }, // Often same as roll initially
             yaw:   { kp: 0.3, ki: 0.07, kd: 0.0 },  // Yaw often needs different tuning, less D typically
             // Shared Integral Limit (adjust based on output scale and desired response)
             iLimit: 0.3,
@@ -77,7 +77,7 @@ const defaultConfig = {
 
     // Drone Control Multipliers (These are now less direct, acting more as limits/scaling for PID output or direct thrust)
     DRONE_CONTROL_MULTIPLIERS: {
-        MAX_THRUST: 30.0, // Thrust remains direct for now
+        MAX_THRUST: 80.0, // Thrust remains direct for now
         // Torque values are now primarily used as OUTPUT LIMITS for the PID controllers
         PITCH_TORQUE: 0.1, // Rename/repurpose? Represents a scale/limit. Tune this!
         ROLL_TORQUE: 0.1,
