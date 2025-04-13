@@ -9,6 +9,7 @@ class AssetLoader {
         this.textureLoader = new THREE.TextureLoader();
         this.cubeTextureLoader = new THREE.CubeTextureLoader();
         this.gltfLoader = new GLTFLoader();
+        this.audioLoader = new THREE.AudioLoader();
 
         // Optional: Setup DRACOLoader if your models use Draco compression
         const dracoLoader = new DRACOLoader();
@@ -22,7 +23,8 @@ class AssetLoader {
         this.loadedAssets = {
             textures: {},
             cubeTextures: {},
-            models: {}
+            models: {},
+            sounds: {}
         };
 
         if (Config.DEBUG_MODE) {
@@ -31,6 +33,28 @@ class AssetLoader {
     }
 
     // --- Loading Methods ---
+
+    loadAudio(key, path) {
+        return new Promise((resolve, reject) => {
+            if (this.loadedAssets.sounds[key]) {
+                resolve(this.loadedAssets.sounds[key]);
+                return;
+            }
+            this.audioLoader.load(path,
+                (buffer) => {
+                    if (Config.DEBUG_MODE) console.log(`AssetLoader: Audio "${key}" loaded from ${path}`);
+                    // Store the AudioBuffer
+                    this.loadedAssets.sounds[key] = buffer;
+                    resolve(buffer);
+                },
+                undefined, // onProgress
+                (error) => {
+                    console.error(`AssetLoader: Failed to load audio "${key}" from ${path}`, error);
+                    reject(error);
+                }
+            );
+        });
+    }
 
     loadTexture(key, path) {
         return new Promise((resolve, reject) => {
@@ -99,6 +123,10 @@ class AssetLoader {
 
     // --- Accessor Methods ---
 
+    getSoundBuffer(key) { // <<< Add sound getter
+        return this.loadedAssets.sounds[key] || null;
+    }
+
     getTexture(key) {
         return this.loadedAssets.textures[key] || null;
     }
@@ -136,6 +164,14 @@ class AssetLoader {
             ],
             textures: [
                 // Example: { key: 'ground', path: 'assets/textures/ground.jpg' }
+            ],
+            sounds: [ // <<< Define sounds to preload
+                // Example paths - replace with actual files later
+                //{ key: 'ui_click', path: 'assets/sounds/ui_click.ogg' },
+                //{ key: 'ui_hover', path: 'assets/sounds/ui_hover.wav' },
+                //{ key: 'ui_toggle', path: 'assets/sounds/ui_toggle.mp3' },
+                //{ key: 'ui_open', path: 'assets/sounds/ui_open.ogg' },
+                //{ key: 'ui_close', path: 'assets/sounds/ui_close.ogg' },
             ]
         };
 
@@ -143,6 +179,7 @@ class AssetLoader {
         assetsToLoad.models.forEach(asset => loadPromises.push(this.loadGLTFModel(asset.key, asset.path)));
         assetsToLoad.cubeTextures.forEach(asset => loadPromises.push(this.loadCubeTexture(asset.key, asset.paths)));
         assetsToLoad.textures.forEach(asset => loadPromises.push(this.loadTexture(asset.key, asset.path)));
+        assetsToLoad.sounds.forEach(asset => loadPromises.push(this.loadAudio(asset.key, asset.path))); // <<< Add sound loading
 
         try {
             await Promise.all(loadPromises);

@@ -2,6 +2,36 @@
 import ConfigManager from '../config/ConfigManager.js';
 import EventBus, { EVENTS } from '../utils/EventBus.js'; // Might need to emit events on change
 
+
+/** --- NEW: Creates a Reset Button --- */
+function createResetButton(buttonText, categoryPathToReset, associatedPanelId = null) {
+    const button = document.createElement('button');
+    button.textContent = buttonText;
+    button.className = 'button-reset-category'; // Add class for styling
+    button.dataset.category = categoryPathToReset; // Store category to reset
+
+    button.addEventListener('click', () => {
+        if (confirm(`Reset "${categoryPathToReset}" settings to default?`)) {
+            ConfigManager.resetToDefaults(categoryPathToReset);
+            // Refresh the UI for the specific panel containing this button
+            // This is a bit tricky - ideally MenuManager handles refresh.
+            // For now, maybe just alert user to reopen menu or manually refresh panel.
+            alert(`"${categoryPathToReset}" reset to defaults. Changes applied.`);
+            // TODO: Need a better way to refresh the UI panel values after reset.
+            // Maybe emit an event?
+            // EventBus.emit(EVENTS.SETTINGS_RESET_REQUESTED, { category: categoryPathToReset, panelId: associatedPanelId });
+        }
+    });
+
+    // Wrap in a div for alignment if needed
+    const wrapper = document.createElement('div');
+    wrapper.style.textAlign = 'right'; // Align button right
+    wrapper.style.marginTop = '20px';
+    wrapper.appendChild(button);
+
+    return wrapper; // Return the wrapper div
+}
+
 /** Creates a container div for a setting item */
 function createSettingItem(labelText) {
     const itemDiv = document.createElement('div');
@@ -111,7 +141,7 @@ function createDisplayItem(labelText, valueText) {
 // Export the factory functions
 export default {
     createSlider,
-    createNumberInput,
     createCheckbox,
     createDisplayItem,
+    createResetButton,
 };

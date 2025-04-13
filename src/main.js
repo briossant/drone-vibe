@@ -6,14 +6,21 @@ import EventBus, { EVENTS } from './utils/EventBus.js'; // Updated path
 import ConfigManager from './config/ConfigManager.js'; // Updated path
 import InputManager from './managers/InputManager.js';   // Updated path
 // Import initial state
-import MenuState from './states/MenuState.js'; // Path likely ok
+import MenuState from './states/MenuState.js';
+import * as THREE from "three"; // Path likely ok
 
 // --- Global Variables ---
 let sharedContext = {}; // Context object to potentially pass engine instance etc.
+let audioListener = null; // <<< Add global audio listener
 
 // --- Initialization ---
 function initializeApp() {
     console.log("App initializing...");
+
+    audioListener = new THREE.AudioListener();
+    sharedContext.audioListener = audioListener;
+    console.log("AudioListener created.");
+
 
     // Initialize Managers that don't depend on state yet
     ConfigManager.loadConfig(); // Load config first

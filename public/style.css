@@ -193,46 +193,62 @@ html, body {
     align-items: center;
     gap: 10px; /* Space between icon and text */
 }
-/* --- NEW/MODIFIED --- Placeholder Icons */
-.sidebar-button::before {
-    content: '■'; /* Placeholder icon */
-    font-family: var(--font-monospace);
-    display: inline-block;
-    width: 1.2em;
-    text-align: center;
-    opacity: 0.6;
-    transition: opacity var(--transition-fast);
-}
+
 .sidebar-button:hover {
     background-color: rgba(var(--accent-primary), 0.15);
     color: var(--text-primary);
 }
-.sidebar-button:hover::before {
-    opacity: 1;
-}
+
 .sidebar-button.active {
     background-color: rgba(var(--accent-primary), 0.3);
     color: var(--text-primary);
     font-weight: 500;
 }
-.sidebar-button.active::before {
-    opacity: 1;
-    color: var(--accent-primary);
-}
+
 /* Specific action buttons */
 #resume-button, #restart-button, #main-menu-button {
     margin-top: auto;
 }
 #resume-button { margin-top: 20px; background-color: rgba(var(--success-color), 0.3); color: #dfffe0; }
 #resume-button:hover { background-color: rgba(var(--success-color), 0.5); color: #fff;}
-#resume-button::before { content: '▶'; } /* Play icon */
-#restart-button::before { content: '↺'; } /* Restart icon */
-#settings-button::before { content: '⚙'; } /* Settings icon */
-#controls-button::before { content: '🎮'; } /* Controller icon */
 #main-menu-button { background-color: rgba(var(--danger-color), 0.2); color: #ffdddd; }
 #main-menu-button:hover { background-color: rgba(var(--danger-color), 0.4); color: #fff;}
-#main-menu-button::before { content: 'ᐊ'; } /* Back icon */
 
+.sidebar-button::before {
+    content: '?'; /* Default icon */
+    font-family: var(--font-monospace);
+    display: inline-block;
+    width: 1.5em; /* Slightly wider for better centering */
+    text-align: center;
+    opacity: 0.7; /* Slightly more visible */
+    transition: opacity var(--transition-fast), color var(--transition-fast);
+    font-weight: bold; /* Make icons bolder */
+    color: var(--text-muted); /* Match muted text */
+    margin-right: 5px; /* Ensure some space if icon is wide */
+    vertical-align: middle; /* Better vertical alignment */
+    font-size: 1.1em; /* Make icon slightly larger */
+    line-height: 1; /* Prevent extra line height */
+}
+.sidebar-button:hover::before {
+    opacity: 1;
+    color: var(--accent-primary); /* Match hover text color */
+}
+.sidebar-button.active::before {
+    opacity: 1;
+    color: var(--accent-primary); /* Use accent color */
+}
+/* Specific action buttons - Icons */
+#resume-button::before { content: '▶'; font-size: 1.2em; } /* Play icon */
+#restart-button::before { content: '↺'; font-size: 1.2em; } /* Restart icon */
+#settings-button::before { content: '⚙'; font-size: 1.2em;} /* Settings gear */
+#controls-button::before { content: '🎮'; font-size: 1.1em; } /* Controller icon */
+#main-menu-button::before { content: 'ᐊ'; font-size: 1.2em;} /* Back arrow / Exit */
+
+/* Sub-Nav Button Icons (Optional - Can add later if desired) */
+/* Example:
+.sub-nav-button[data-panel="graphics-settings-content"]::before { content: '🖼️'; margin-right: 5px; }
+.sub-nav-button[data-panel="fly-settings-content"]::before { content: '✈️'; margin-right: 5px; }
+*/
 
 /* Content Area (Refined) */
 .menu-content-area {
@@ -471,6 +487,22 @@ html, body {
 }
 #fade-overlay.visible { opacity: 1; }
 #fade-overlay.hidden { display: block; opacity: 0; pointer-events: none; }
+
+.button-reset-category {
+    background-color: rgba(var(--warning-color), 0.2);
+    border: 1px solid var(--warning-color);
+    color: var(--warning-color);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: 500;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+.button-reset-category:hover {
+    background-color: rgba(var(--warning-color), 0.4);
+    color: #fff;
+}
 
 /* --- Animations --- */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

@@ -92,6 +92,28 @@ class InputManager {
         // SimulatorEngine will call getControls() when it needs them.
     }
 
+    getGamepadStatus() {
+        if (this.activeGamepadIndex !== null && this.gamepads[this.activeGamepadIndex]) {
+            const gp = this.gamepads[this.activeGamepadIndex];
+            return {
+                isConnected: true,
+                id: gp.id,
+                index: gp.index,
+                axesCount: gp.axes.length,
+                buttonCount: gp.buttons.length,
+            };
+        } else {
+            return {
+                isConnected: false,
+                id: 'No active gamepad',
+                index: null,
+                axesCount: 0,
+                buttonCount: 0
+            };
+        }
+    }
+
+
     // --- Event Emitters ---
     handleKeyDown(event) {
         this.keys[event.key] = true;

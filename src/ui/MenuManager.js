@@ -2,6 +2,8 @@
 import EventBus, { EVENTS } from '../utils/EventBus.js';
 import ConfigManager from '../config/ConfigManager.js';
 import UIComponentFactory from './UIComponentFactory.js';
+import StateManager from "../managers/StateManager.js";
+import InputManager from "../managers/InputManager.js";
 
 class MenuManager {
     constructor() {
@@ -12,6 +14,10 @@ class MenuManager {
         this.osdElement = document.getElementById('osd');
         this.canvasElement = document.getElementById('webgl-canvas');
         this.fadeOverlay = document.getElementById('fade-overlay');
+        this.gamepadStatusElement = document.getElementById('gamepad-status'); // Cache status element
+        this.gamepadVisualElement = document.getElementById('gamepad-visual'); // Cache visual elem
+
+        this.gamepadStatusInterval = null; // Interval ID for polling status
 
         // In-Sim Menu Elements
         this.inSimMenuElement = document.getElementById('in-sim-menu');
@@ -47,6 +53,9 @@ class MenuManager {
         this.activeView = null; // Track the currently active view element
         this.activePanels = {}; // Track active panel per view { viewId: panelId }
 
+        this.audioListener = StateManager.context?.audioListener || null; // Get listener from context
+        this.sounds = {}; // Cache THREE.Audio objects
+
         if (MenuManager._instance) {
             return MenuManager._instance;
         }
@@ -66,6 +75,48 @@ class MenuManager {
         this.hideElement(this.canvasElement);
         this.hideElement(this.osdElement);
         this.hideElement(this.fadeOverlay);
+        this._setupAudio(); // Call audio setup
+    }
+
+    // --- NEW: Audio Setup ---
+    _setupAudio() {
+        if (!this.audioListener) {
+            console.warn("MenuManager: AudioListener not found in context. Cannot setup sounds.");
+            // Attempt to get it again (might be available later)
+            this.audioListener = StateManager.context?.audioListener;
+            if(!this.audioListener) return;
+        }
+
+        const soundKeys = ['ui_click', 'ui_hover', 'ui_toggle', 'ui_open', 'ui_close'];
+        soundKeys.forEach(key => {
+            const buffer = AssetLoader.getSoundBuffer(key);
+            if (buffer) {
+                const sound = new THREE.Audio(this.audioListener);
+                sound.setBuffer(buffer);
+                sound.setVolume(0.5); // Default volume
+                this.sounds[key] = sound;
+                if(ConfigManager.getConfig().DEBUG_MODE) console.log(`MenuManager: Created THREE.Audio for '${key}'`);
+            } else {
+                console.warn(`MenuManager: Audio buffer not found for key '${key}'`);
+            }
+        });
+    }
+
+    // --- NEW: Play Sound Method ---
+    _playSound(key) {
+        if (this.sounds[key]) {
+            // Ensure audio context is running (requires user interaction first)
+            if (this.audioListener && this.audioListener.context.state === 'suspended') {
+                this.audioListener.context.resume();
+            }
+            // Stop previous instance if playing, then play new
+            if (this.sounds[key].isPlaying) {
+                this.sounds[key].stop();
+            }
+            this.sounds[key].play();
+        } else {
+            // console.warn(`MenuManager: Attempted to play sound '${key}' but it's not ready.`);
+        }
     }
 
     // --- UI Visibility Control Methods (Mostly Unchanged) ---
@@ -103,15 +154,20 @@ class MenuManager {
     // --- NEW/MODIFIED: In-Sim Menu Visibility ---
     showInSimMenu() {
         this.showElement(this.inSimMenuElement);
-        // Don't show a specific view initially, let user click Settings/Controls
         this._deactivateAllViews();
-        this._deactivateAllSidebarButtons(); // Ensure no sidebar button looks active
+        this._deactivateAllSidebarButtons();
         this.activeView = null;
+        this._playSound('ui_open'); // <<< Play open sound
     }
 
     hideInSimMenu() {
+        // Check if it's currently visible before playing sound
+        if (!this.inSimMenuElement?.classList.contains('hidden')) {
+            this._playSound('ui_close'); // <<< Play close sound
+        }
         this.hideElement(this.inSimMenuElement);
-        this.activeView = null; // Reset active view when hiding
+        this.activeView = null;
+        this._stopGamepadStatusPolling();
     }
 
     // --- Fade Transition (Unchanged) ---
@@ -151,16 +207,19 @@ class MenuManager {
         this.fcSettingsContent?.replaceChildren(); // Clear it
 
         // Use UIComponentFactory
-        const { createSlider, createCheckbox, createDisplayItem } = UIComponentFactory; // Removed createNumberInput
+        const { createSlider, createCheckbox, createDisplayItem, createResetButton } = UIComponentFactory;
 
         // Append to the correct containers
         this.graphicsSettingsContent?.appendChild(this._createHeading('Graphics Settings'));
         this.graphicsSettingsContent?.appendChild(createCheckbox('Enable Bloom', 'GRAPHICS_SETTINGS.enableBloom'));
         this.graphicsSettingsContent?.appendChild(createCheckbox('Enable Vignette', 'GRAPHICS_SETTINGS.enableVignette'));
         this.graphicsSettingsContent?.appendChild(createSlider('FPV FOV', 70, 140, 1, 'FPV_CAMERA_FOV'));
+        this.graphicsSettingsContent?.appendChild(createResetButton('Reset Graphics', 'GRAPHICS_SETTINGS')); // <<< ADD
 
         this.flySettingsContent?.appendChild(this._createHeading('Fly Settings'));
         this.flySettingsContent?.appendChild(createSlider('FPV Camera Angle (°)', -20, 60, 1, 'FPV_CAMERA_ANGLE_DEG'));
+        this.flySettingsContent?.appendChild(createResetButton('Reset Fly Settings', 'FPV_CAMERA_ANGLE_DEG')); // Reset specific fly setting example
+        this.flySettingsContent?.appendChild(createResetButton('Reset FOV', 'FPV_CAMERA_FOV')); // Reset specific fly setting example
 
         this.fcSettingsContent?.appendChild(this._createHeading('Flight Controller Settings'));
         this.fcSettingsContent?.appendChild(createSlider('Roll Rate P', 0, 2.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.kp'));
@@ -175,11 +234,14 @@ class MenuManager {
         this.fcSettingsContent?.appendChild(createSlider('PID I-Limit', 0, 1.0, 0.02, 'FLIGHT_CONTROLLER_SETTINGS.PID.iLimit'));
         this.fcSettingsContent?.appendChild(createSlider('Max Roll/Pitch Rate (°/s)', 100, 1500, 10, 'FLIGHT_CONTROLLER_SETTINGS.RATE_LIMITS.roll'));
         this.fcSettingsContent?.appendChild(createSlider('Max Yaw Rate (°/s)', 100, 1000, 10, 'FLIGHT_CONTROLLER_SETTINGS.RATE_LIMITS.yaw'));
+        this.fcSettingsContent?.appendChild(createResetButton('Reset Flight Controller', 'FLIGHT_CONTROLLER_SETTINGS')); // <<< ADD
 
         this.physicsSettingsContent?.appendChild(this._createHeading('Physics Settings'));
         this.physicsSettingsContent?.appendChild(createSlider('Drone Mass (kg)', 0.1, 2.0, 0.05, 'DRONE_MASS'));
         this.physicsSettingsContent?.appendChild(createSlider('Linear Damping', 0, 1, 0.02, 'DRONE_PHYSICS_SETTINGS.linearDamping'));
         this.physicsSettingsContent?.appendChild(createSlider('Angular Damping', 0, 1, 0.02, 'DRONE_PHYSICS_SETTINGS.angularDamping'));
+        this.physicsSettingsContent?.appendChild(createResetButton('Reset Physics', 'DRONE_PHYSICS_SETTINGS')); // <<< ADD
+        this.physicsSettingsContent?.appendChild(createResetButton('Reset Mass', 'DRONE_MASS')); // <<< ADD Specific
 
         this.gamepadSettingsContent?.appendChild(this._createHeading('Gamepad Settings'));
         // Add status/visual placeholders back if cleared
@@ -198,6 +260,7 @@ class MenuManager {
         this.gamepadSettingsContent?.appendChild(createCheckbox('Invert Thrust Axis', 'GAMEPAD_INVERT_AXES.thrust'));
         this.gamepadSettingsContent?.appendChild(createDisplayItem('Arm/Disarm Button', `Index ${config.GAMEPAD_BUTTON_MAPPING.armDisarm}`));
         this.gamepadSettingsContent?.appendChild(createDisplayItem('Reset Button', `Index ${config.GAMEPAD_BUTTON_MAPPING.reset}`));
+        this.gamepadSettingsContent?.appendChild(createResetButton('Reset Gamepad', 'GAMEPAD_SETTINGS'));
 
         this.keyboardSettingsDisplay?.appendChild(this._createHeading('Keyboard Settings'));
         this.keyboardSettingsDisplay?.appendChild(createSlider('Keyboard Roll Sens.', 0.1, 2.0, 0.05, 'KEYBOARD_SENSITIVITY.roll'));
@@ -209,6 +272,26 @@ class MenuManager {
         this.keyboardSettingsDisplay?.appendChild(createDisplayItem('Thrust Keys', 'Shift/Ctrl/Space'));
         this.keyboardSettingsDisplay?.appendChild(createDisplayItem('Arm/Disarm Key', 'Enter'));
         this.keyboardSettingsDisplay?.appendChild(createDisplayItem('Reset Key', 'R'));
+        this.keyboardSettingsDisplay?.appendChild(createResetButton('Reset Keyboard Sens.', 'KEYBOARD_SENSITIVITY')); // <<< ADD
+
+        this.gamepadStatusElement = document.getElementById('gamepad-status');
+        this.gamepadVisualElement = document.getElementById('gamepad-visual');
+        if (!this.gamepadStatusElement && this.gamepadSettingsContent) {
+            this.gamepadStatusElement = document.createElement('div');
+            this.gamepadStatusElement.id = 'gamepad-status';
+            this.gamepadSettingsContent.prepend(this.gamepadStatusElement); // Add status first
+        }
+        if (!this.gamepadVisualElement && this.gamepadSettingsContent) {
+            this.gamepadVisualElement = document.createElement('div');
+            this.gamepadVisualElement.id = 'gamepad-visual';
+            // Insert visual after status (or wherever appropriate)
+            if(this.gamepadStatusElement) {
+                this.gamepadStatusElement.after(this.gamepadVisualElement);
+            } else {
+                this.gamepadSettingsContent.prepend(this.gamepadVisualElement);
+            }
+        }
+        this._updateGamepadStatusDisplay(); // Initial update
 
         console.log("MenuManager: Settings panels populated into new structure.");
     }
@@ -222,58 +305,125 @@ class MenuManager {
     // --- Event Listeners Setup (Updated for New Structure) ---
     _addEventListeners() {
         // Main Menu
-        this.flyButton?.addEventListener('click', () => EventBus.emit(EVENTS.FLY_BUTTON_CLICKED));
+        this.flyButton?.addEventListener('click', () => {
+            this._playSound('ui_click'); // Play click sound
+            EventBus.emit(EVENTS.FLY_BUTTON_CLICKED);
+        });
 
         // In-Sim Menu - Action Buttons
-        this.resumeButton?.addEventListener('click', () => EventBus.emit(EVENTS.RESUME_BUTTON_CLICKED));
-        this.restartButton?.addEventListener('click', () => EventBus.emit(EVENTS.RESTART_BUTTON_CLICKED));
-        this.mainMenuButton?.addEventListener('click', () => EventBus.emit(EVENTS.RETURN_TO_MAIN_MENU_CLICKED));
+        this.resumeButton?.addEventListener('click', () => {
+            this._playSound('ui_click');
+            EventBus.emit(EVENTS.RESUME_BUTTON_CLICKED);
+        });
+        this.restartButton?.addEventListener('click', () => {
+            this._playSound('ui_click');
+            EventBus.emit(EVENTS.RESTART_BUTTON_CLICKED);
+        });
+        this.mainMenuButton?.addEventListener('click', () => {
+            this._playSound('ui_close'); // Use close sound?
+            EventBus.emit(EVENTS.RETURN_TO_MAIN_MENU_CLICKED);
+        });
 
         // In-Sim Menu - Sidebar View Buttons
         this.sidebarButtons?.forEach(button => {
-            button.addEventListener('click', this._handleSidebarClick.bind(this));
+            button.addEventListener('click', (e) => {
+                this._playSound('ui_click');
+                this._handleSidebarClick(e);
+            });
+            button.addEventListener('mouseenter', () => this._playSound('ui_hover')); // Hover sound
         });
 
         // In-Sim Menu - Sub-Navigation Buttons
         this.subNavButtons?.forEach(button => {
-            button.addEventListener('click', this._handleSubNavClick.bind(this));
+            button.addEventListener('click', (e) => {
+                this._playSound('ui_click');
+                this._handleSubNavClick(e);
+            });
+            button.addEventListener('mouseenter', () => this._playSound('ui_hover')); // Hover sound
         });
 
         // Canvas Click for Pointer Lock Request
-        this.canvasElement?.addEventListener('click', () => EventBus.emit(EVENTS.CANVAS_CLICKED));
+        this.canvasElement?.addEventListener('click', () => {
+            // No sound usually needed for this
+            EventBus.emit(EVENTS.CANVAS_CLICKED);
+        });
 
-        console.log("MenuManager: New event listeners added.");
-        // REMOVED Listeners for old buttons: settings-panel-button, controls-panel-button, apply-save-button, .back-button
+        // Add hover sounds to main menu buttons too
+        this.mainMenuElement?.querySelectorAll('.nav-button').forEach(button => {
+            button.addEventListener('mouseenter', () => {
+                if (!button.disabled) this._playSound('ui_hover');
+            });
+        });
+
+        console.log("MenuManager: New event listeners added (with sound triggers).");
     }
 
-    // --- NEW: View and Panel Switching Logic ---
-
+    // --- View and Panel Switching Logic ---
     _handleSidebarClick(event) {
         const button = event.currentTarget;
-        const viewId = button.dataset.view; // Get target view ID from data-view
+        const viewId = button.dataset.view;
 
-        if (!viewId) return; // Should not happen for buttons with data-view
+        if (!viewId) return;
 
-        // Deactivate previously active button and view
         this._deactivateAllSidebarButtons();
         this._deactivateAllViews();
-
-        // Activate clicked button and corresponding view
         button.classList.add('active');
         const targetView = document.getElementById(viewId);
+
         if (targetView) {
             targetView.classList.add('active');
-            this.activeView = targetView; // Store active view
+            this.activeView = targetView;
 
-            // Activate the default (first) sub-nav tab and panel within the newly activated view
             const firstSubNavButton = targetView.querySelector('.sub-nav-button[data-panel]');
             if (firstSubNavButton) {
                 this._activateSubNavButtonAndPanel(firstSubNavButton);
             }
 
+            // --- NEW: Start/Stop Gamepad Status Polling ---
+            if (viewId === 'pause-controls-view') {
+                this._startGamepadStatusPolling();
+            } else {
+                this._stopGamepadStatusPolling();
+            }
+            // --- END NEW ---
+
         } else {
             console.warn(`MenuManager: Target view with ID "${viewId}" not found.`);
             this.activeView = null;
+            this._stopGamepadStatusPolling(); // Stop polling if view not found
+        }
+    }
+
+    // --- NEW: Gamepad Status Update Logic ---
+    _startGamepadStatusPolling() {
+        if (this.gamepadStatusInterval) return; // Already running
+        this._updateGamepadStatusDisplay(); // Update immediately
+        this.gamepadStatusInterval = setInterval(() => {
+            this._updateGamepadStatusDisplay();
+        }, 1000); // Update every second
+        if(ConfigManager.getConfig().DEBUG_MODE) console.log("MenuManager: Started gamepad status polling.");
+    }
+
+    _stopGamepadStatusPolling() {
+        if (this.gamepadStatusInterval) {
+            clearInterval(this.gamepadStatusInterval);
+            this.gamepadStatusInterval = null;
+            if(ConfigManager.getConfig().DEBUG_MODE) console.log("MenuManager: Stopped gamepad status polling.");
+        }
+    }
+
+    _updateGamepadStatusDisplay() {
+        if (!this.gamepadStatusElement) return;
+        const status = InputManager.getGamepadStatus();
+        if (status.isConnected) {
+            this.gamepadStatusElement.textContent = `Gamepad Status: Connected (${status.id} - Index ${status.index})`;
+            this.gamepadStatusElement.style.color = 'var(--accent-secondary)'; // Teal color for connected
+            // TODO: Update gamepad visual diagram based on status.axes/buttons later
+            this.gamepadVisualElement.textContent = `(Axes: ${status.axesCount}, Buttons: ${status.buttonCount} - Diagram TBD)`;
+        } else {
+            this.gamepadStatusElement.textContent = `Gamepad Status: Disconnected`;
+            this.gamepadStatusElement.style.color = 'var(--text-muted)'; // Muted color for disconnected
+            this.gamepadVisualElement.textContent = `(Gamepad Diagram Placeholder)`;
         }
     }
 
@@ -321,13 +471,17 @@ class MenuManager {
         this._deactivateAllViews();
         this._deactivateAllSidebarButtons();
         this.activeView = null;
+        this._stopGamepadStatusPolling(); // <<< Stop polling on reset view
     }
+
 
 
     // --- Cleanup ---
     dispose() {
+        // Ensure interval is cleared on dispose
+        this._stopGamepadStatusPolling();
         // TODO: Remove event listeners added in _addEventListeners
-        console.log("MenuManager: Disposed (placeholder).");
+        console.log("MenuManager: Disposed.");
     }
 }
 
