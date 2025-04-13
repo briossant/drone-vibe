@@ -8,87 +8,101 @@
 </head>
 <body>
 
-<!-- ========= NEW: Main Menu Overlay ========= -->
-<div id="main-menu" class="overlay">
+<!-- ========= MODIFIED: Main Menu Overlay ========= -->
+<div id="main-menu" class="overlay main-menu-style"> <!-- Added class -->
+    <div class="main-menu-background"></div> <!-- New background element -->
     <div class="menu-content">
-        <h1>FPV Drone Simulator</h1>
-        <button id="fly-button">Fly</button>
-        <button id="settings-button" disabled>Settings (In-Sim)</button> <!-- Disabled for now -->
-        <button id="controls-button" disabled>Controls (In-Sim)</button> <!-- Disabled for now -->
-        <!-- Add other menu items like Help later -->
+        <h1 class="main-title">FPV Drone Simulator</h1> <!-- Added class -->
+        <nav class="main-nav"> <!-- Wrapped buttons -->
+            <button id="fly-button" class="nav-button">Fly</button> <!-- Added class -->
+            <!-- Settings/Controls buttons link to in-sim menu, could be enabled later
+                 if direct access from main menu is desired, but roadmap implies in-sim only. -->
+            <!-- <button id="main-settings-button" class="nav-button" disabled>Settings</button> -->
+            <!-- <button id="main-controls-button" class="nav-button" disabled>Controls</button> -->
+        </nav>
     </div>
 </div>
 <!-- ========================================== -->
 
-<!-- ========= NEW: Loading Indicator ========= -->
-<div id="loading-indicator" class="overlay hidden"> <!-- Initially hidden -->
+<!-- ========= Loading Indicator (Unchanged) ========= -->
+<div id="loading-indicator" class="overlay hidden">
     <div class="menu-content">
         <p>Loading...</p>
-        <!-- Optional: Add a spinner or progress bar later -->
     </div>
 </div>
 <!-- ========================================== -->
 
+<!-- ========= REWORKED: In-Sim Pause Menu ========= -->
+<div id="in-sim-menu" class="overlay hidden in-sim-menu-style"> <!-- Added class, initially hidden -->
+    <div class="menu-backdrop"></div> <!-- For blur effect -->
+    <div class="menu-container"> <!-- Main container for layout -->
+        <nav class="menu-sidebar">
+            <!-- Sidebar Buttons (data-view links to content-view IDs) -->
+            <button id="resume-button" class="sidebar-button" data-action="resume">Resume</button> <!-- Placeholder icon -->
+            <button id="restart-button" class="sidebar-button" data-action="restart">Restart</button> <!-- Placeholder icon -->
+            <button id="settings-button" class="sidebar-button" data-view="pause-settings-view">[S] Settings</button> <!-- Placeholder icon -->
+            <button id="controls-button" class="sidebar-button" data-view="pause-controls-view">[C] Controls</button> <!-- Placeholder icon -->
+            <button id="main-menu-button" class="sidebar-button" data-action="main-menu">Main Menu</button> <!-- Placeholder icon -->
+        </nav>
+        <main class="menu-content-area">
+            <!-- Default View (Shown when paused, no specific view selected) -->
+            <!-- This view might be implicitly shown or merged -->
+            <!-- Let's remove it for now and rely on selecting Settings/Controls -->
 
-<!-- In-Sim Settings Menu -->
-<div id="in-sim-menu" class="overlay hidden">
-    <div class="menu-content">
-        <h2>Paused</h2>
-        <div id="pause-main-options"> <!-- Group main pause buttons -->
-            <button id="resume-button">Resume</button>
-            <button id="settings-panel-button">Settings</button>
-            <button id="controls-panel-button">Controls</button>
-            <button id="restart-button">Restart Flight</button>
-            <button id="main-menu-button">Return to Main Menu</button>
-        </div>
+            <!-- Settings View -->
+            <div id="pause-settings-view" class="content-view"> <!-- Initially hidden via CSS -->
+                <h2>Settings</h2>
+                <nav class="sub-nav">
+                    <button data-panel="graphics-settings-content" class="sub-nav-button active">Graphics</button>
+                    <button data-panel="fly-settings-content" class="sub-nav-button">Fly</button>
+                    <button data-panel="physics-settings-content" class="sub-nav-button">Physics</button>
+                    <button data-panel="fc-settings-content" class="sub-nav-button">Flight Controller</button>
+                </nav>
+                <!-- Content panels (populated by JS) -->
+                <div id="graphics-settings-content" class="panel-content active"><h4>Graphics Settings</h4></div>
+                <div id="fly-settings-content" class="panel-content"><h4>Fly Settings</h4></div>
+                <div id="physics-settings-content" class="panel-content"><h4>Physics Settings</h4></div>
+                <div id="fc-settings-content" class="panel-content"><h4>Flight Controller Settings</h4></div>
+                <!-- Add Reset to Defaults buttons per panel or globally later -->
+            </div>
 
-        <!-- Panels for actual settings -->
-        <div id="settings-panel" class="panel hidden">
-            <h3>Settings</h3>
-            <div id="graphics-settings-content"> <!-- <<<< NEW CONTAINER -->
-                <h4>Graphics Settings</h4>
+            <!-- Controls View -->
+            <div id="pause-controls-view" class="content-view"> <!-- Initially hidden via CSS -->
+                <h2>Controls</h2>
+                <nav class="sub-nav">
+                    <button data-panel="gamepad-settings-content" class="sub-nav-button active">Gamepad</button>
+                    <button data-panel="keyboard-settings-display" class="sub-nav-button">Keyboard</button>
+                </nav>
+                <!-- Content panels (populated by JS) -->
+                <div id="gamepad-settings-content" class="panel-content active">
+                    <h4>Gamepad Settings</h4>
+                    <div id="gamepad-status">Gamepad Status: Disconnected</div> <!-- Status Text -->
+                    <div id="gamepad-visual"></div> <!-- Placeholder for Diagram -->
+                    <!-- Gamepad controls injected here -->
+                </div>
+                <div id="keyboard-settings-display" class="panel-content">
+                    <h4>Keyboard Settings</h4>
+                    <!-- Keyboard controls/display injected here -->
+                </div>
+                <!-- Add Remapping / Reset buttons later -->
             </div>
-            <!-- Content will be injected here -->
-            <div id="fly-settings-content">
-                <h4>Fly Settings</h4>
-                <!-- Fly controls (FOV, Sensitivity) go here -->
-            </div>
-            <div id="physics-settings-content">
-                <h4>Physics Settings</h4>
-                <!-- Physics controls (Mass, Damping) go here -->
-            </div>
-            <button class="back-button">Back</button>
-        </div>
-
-        <div id="controls-panel" class="panel hidden">
-            <h3>Controls</h3>
-            <!-- Content will be injected here -->
-            <div id="gamepad-settings-content">
-                <h4>Gamepad Settings</h4>
-                <!-- Gamepad controls (Deadzone, Invert) go here -->
-            </div>
-            <div id="keyboard-settings-display">
-                <h4>Keyboard Settings</h4>
-                <!-- Display keyboard sensitivity, maybe mapping later -->
-            </div>
-            <button class="back-button">Back</button>
-        </div>
-
-        <!-- Apply/Save Button (Show/Hide managed by JS) -->
-        <button id="apply-save-button" class="hidden">Apply & Save Settings</button>
+        </main>
     </div>
+    <!-- REMOVED: Old structure: #pause-main-options, #settings-panel, #controls-panel, #apply-save-button -->
 </div>
+<!-- ========================================== -->
+
 
 <div id="fade-overlay" class="hidden"></div>
 
-<!-- Canvas for Three.js rendering (Initially hidden potentially) -->
+<!-- Canvas for Three.js rendering -->
 <canvas id="webgl-canvas" class="hidden"></canvas>
 
-<!-- Overlay for On-Screen Display (Initially hidden) -->
+<!-- Overlay for On-Screen Display -->
 <div id="osd" class="hidden">
-    <!-- OSD elements will be added here later via JS -->
     <p>Initializing...</p>
 </div>
+
 <!-- Libraries (Keep as is) -->
 <script type="importmap">
     {
@@ -101,7 +115,7 @@
     }
 </script>
 
-<!-- Main Application Script (Keep as is) -->
+<!-- Main Application Script -->
 <script type="module" src="../src/main.js"></script>
 </body>
 </html>

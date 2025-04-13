@@ -1,34 +1,51 @@
 // src/ui/MenuManager.js
-import EventBus, { EVENTS } from '../utils/EventBus.js'; // Updated path
-import ConfigManager from '../config/ConfigManager.js'; // Updated path
-import UIComponentFactory from './UIComponentFactory.js'; // Import the factory (path ok)
+import EventBus, { EVENTS } from '../utils/EventBus.js';
+import ConfigManager from '../config/ConfigManager.js';
+import UIComponentFactory from './UIComponentFactory.js';
 
 class MenuManager {
     constructor() {
-        // Cache DOM Elements
+        // --- NEW/MODIFIED: Cache NEW DOM Elements ---
         this.mainMenuElement = document.getElementById('main-menu');
         this.loadingIndicatorElement = document.getElementById('loading-indicator');
         this.flyButton = document.getElementById('fly-button');
-        this.osdElement = document.getElementById('osd'); // Keep OSD ref if needed for hide/show
-        this.canvasElement = document.getElementById('webgl-canvas'); // Keep ref for hide/show
+        this.osdElement = document.getElementById('osd');
+        this.canvasElement = document.getElementById('webgl-canvas');
         this.fadeOverlay = document.getElementById('fade-overlay');
+
+        // In-Sim Menu Elements
         this.inSimMenuElement = document.getElementById('in-sim-menu');
-        this.pauseMainOptions = document.getElementById('pause-main-options');
-        this.settingsPanelButton = document.getElementById('settings-panel-button');
-        this.controlsPanelButton = document.getElementById('controls-panel-button');
-        this.settingsPanel = document.getElementById('settings-panel');
-        this.controlsPanel = document.getElementById('controls-panel');
-        this.graphicsSettingsContent = document.getElementById('graphics-settings-content');
-        this.flySettingsContent = document.getElementById('fly-settings-content');
-        this.physicsSettingsContent = document.getElementById('physics-settings-content');
-        this.fcSettingsContent = document.createElement('div'); // Created dynamically below
-        this.gamepadSettingsContent = document.getElementById('gamepad-settings-content');
-        this.keyboardSettingsDisplay = document.getElementById('keyboard-settings-display');
+        this.sidebar = this.inSimMenuElement?.querySelector('.menu-sidebar');
+        this.contentArea = this.inSimMenuElement?.querySelector('.menu-content-area');
+
+        // Sidebar Buttons (Action Buttons)
         this.resumeButton = document.getElementById('resume-button');
         this.restartButton = document.getElementById('restart-button');
         this.mainMenuButton = document.getElementById('main-menu-button');
-        this.applySaveButton = document.getElementById('apply-save-button');
-        this.backButtons = document.querySelectorAll('.panel .back-button');
+
+        // Sidebar Buttons (View Triggers)
+        this.sidebarButtons = this.sidebar?.querySelectorAll('.sidebar-button[data-view]'); // Select only buttons with data-view
+
+        // Content Views
+        this.contentViews = this.contentArea?.querySelectorAll('.content-view');
+        this.settingsView = document.getElementById('pause-settings-view');
+        this.controlsView = document.getElementById('pause-controls-view');
+
+        // Sub-Navigation Buttons (within each view)
+        this.subNavButtons = this.contentArea?.querySelectorAll('.sub-nav-button[data-panel]');
+
+        // Content Panels (within each view)
+        this.contentPanels = this.contentArea?.querySelectorAll('.panel-content');
+        this.graphicsSettingsContent = document.getElementById('graphics-settings-content');
+        this.flySettingsContent = document.getElementById('fly-settings-content');
+        this.physicsSettingsContent = document.getElementById('physics-settings-content');
+        // Note: fcSettingsContent is dynamically created, handled in _populateSettingsPanels
+        this.gamepadSettingsContent = document.getElementById('gamepad-settings-content');
+        this.keyboardSettingsDisplay = document.getElementById('keyboard-settings-display');
+        this.fcSettingsContent = null; // Will be assigned in _populate
+
+        this.activeView = null; // Track the currently active view element
+        this.activePanels = {}; // Track active panel per view { viewId: panelId }
 
         if (MenuManager._instance) {
             return MenuManager._instance;
@@ -39,10 +56,10 @@ class MenuManager {
 
     initialize() {
         console.log("MenuManager: Initializing UI components and listeners...");
-        this._populateSettingsPanels(); // Populate panels on init
-        this._addEventListeners();      // Add listeners on init
+        this._populateSettingsPanels();
+        this._addEventListeners();
 
-        // Set initial visibility based on expected starting state (MENU)
+        // Set initial visibility
         this.showMainMenu();
         this.hideLoading();
         this.hideInSimMenu();
@@ -51,7 +68,7 @@ class MenuManager {
         this.hideElement(this.fadeOverlay);
     }
 
-    // --- UI Visibility Control Methods ---
+    // --- UI Visibility Control Methods (Mostly Unchanged) ---
 
     showElement(element) { element?.classList.remove('hidden'); }
     hideElement(element) { element?.classList.add('hidden'); }
@@ -59,7 +76,7 @@ class MenuManager {
     showMainMenu() {
         this.showElement(this.mainMenuElement);
         this.hideElement(this.loadingIndicatorElement);
-        this.hideElement(this.inSimMenuElement);
+        this.hideInSimMenu(); // Use specific hide method
         this.hideElement(this.canvasElement);
         this.hideElement(this.osdElement);
     }
@@ -68,7 +85,7 @@ class MenuManager {
         this.loadingIndicatorElement.querySelector('p').textContent = message;
         this.showElement(this.loadingIndicatorElement);
         this.hideElement(this.mainMenuElement);
-        this.hideElement(this.inSimMenuElement);
+        this.hideInSimMenu();
         this.hideElement(this.canvasElement);
         this.hideElement(this.osdElement);
     }
@@ -80,153 +97,236 @@ class MenuManager {
         this.showElement(this.osdElement);
         this.hideElement(this.mainMenuElement);
         this.hideElement(this.loadingIndicatorElement);
-        this.hideElement(this.inSimMenuElement);
+        this.hideInSimMenu();
     }
 
+    // --- NEW/MODIFIED: In-Sim Menu Visibility ---
     showInSimMenu() {
         this.showElement(this.inSimMenuElement);
-        this.showElement(this.pauseMainOptions); // Show main pause options first
-        this.hideElement(this.settingsPanel);    // Hide specific panels
-        this.hideElement(this.controlsPanel);
-        this.hideElement(this.applySaveButton); // Hide save button initially
+        // Don't show a specific view initially, let user click Settings/Controls
+        this._deactivateAllViews();
+        this._deactivateAllSidebarButtons(); // Ensure no sidebar button looks active
+        this.activeView = null;
     }
 
     hideInSimMenu() {
         this.hideElement(this.inSimMenuElement);
+        this.activeView = null; // Reset active view when hiding
     }
 
-    showSettingsPanel(panelElement) {
-        this.hideElement(this.pauseMainOptions);
-        this.showElement(panelElement);
-        this.showElement(this.applySaveButton);
-        if (panelElement === this.settingsPanel) this.hideElement(this.controlsPanel);
-        if (panelElement === this.controlsPanel) this.hideElement(this.settingsPanel);
-    }
-
-    hideSettingsPanels() {
-        this.hideElement(this.settingsPanel);
-        this.hideElement(this.controlsPanel);
-        this.hideElement(this.applySaveButton);
-        this.showElement(this.pauseMainOptions);
-    }
-
-    // --- Fade Transition ---
+    // --- Fade Transition (Unchanged) ---
     async fadeTransition(actionBetweenFades) {
+        // ... (keep existing implementation)
         if (!this.fadeOverlay) return;
         this.fadeOverlay.classList.remove('hidden');
-        await new Promise(resolve => requestAnimationFrame(resolve)); // Wait for next frame
+        await new Promise(resolve => requestAnimationFrame(resolve));
         this.fadeOverlay.classList.add('visible');
-        await new Promise(resolve => setTimeout(resolve, 300)); // Duration of fade in
-
-        if (actionBetweenFades) await actionBetweenFades(); // Perform action during black screen
-
+        await new Promise(resolve => setTimeout(resolve, 300));
+        if (actionBetweenFades) await actionBetweenFades();
         this.fadeOverlay.classList.remove('visible');
-        await new Promise(resolve => setTimeout(resolve, 300)); // Duration of fade out
+        await new Promise(resolve => setTimeout(resolve, 300));
         this.fadeOverlay.classList.add('hidden');
     }
 
-    // --- Populate Settings Panels (Uses Factory) ---
+    // --- Populate Settings Panels (Adjusted for new structure) ---
     _populateSettingsPanels() {
         const config = ConfigManager.getConfig();
 
-        // Clear previous controls
-        this.graphicsSettingsContent.innerHTML = '<h4>Graphics Settings</h4>';
-        this.flySettingsContent.innerHTML = '<h4>Fly Settings</h4>';
-        this.physicsSettingsContent.innerHTML = '<h4>Physics Settings</h4>';
+        // --- NEW/MODIFIED: Clear specific containers ---
+        // Clear using direct references if they exist
+        this.graphicsSettingsContent?.replaceChildren(); // Use replaceChildren for modern browsers
+        this.flySettingsContent?.replaceChildren();
+        this.physicsSettingsContent?.replaceChildren();
+        this.gamepadSettingsContent?.replaceChildren();
+        this.keyboardSettingsDisplay?.replaceChildren();
 
-        // Handle FC Settings Content creation and insertion
-        this.fcSettingsContent.id = 'fc-settings-content';
-        // Insert FC settings before Physics settings
-        this.settingsPanel.insertBefore(this.fcSettingsContent, this.physicsSettingsContent);
-        this.fcSettingsContent.innerHTML = '<h4>Flight Controller Settings</h4>';
-
-        this.gamepadSettingsContent.innerHTML = '<h4>Gamepad Settings</h4>';
-        this.keyboardSettingsDisplay.innerHTML = '<h4>Keyboard Settings</h4>';
+        // Handle FC Settings Content creation and insertion if not already done
+        if (!this.fcSettingsContent && this.physicsSettingsContent) {
+            this.fcSettingsContent = document.createElement('div');
+            this.fcSettingsContent.id = 'fc-settings-content';
+            this.fcSettingsContent.className = 'panel-content'; // Assign class
+            // Insert FC settings before Physics settings
+            this.physicsSettingsContent.parentNode.insertBefore(this.fcSettingsContent, this.physicsSettingsContent);
+        }
+        this.fcSettingsContent?.replaceChildren(); // Clear it
 
         // Use UIComponentFactory
-        const { createSlider, createCheckbox, createNumberInput, createDisplayItem } = UIComponentFactory;
+        const { createSlider, createCheckbox, createDisplayItem } = UIComponentFactory; // Removed createNumberInput
 
-        // Graphics
-        this.graphicsSettingsContent.appendChild(createCheckbox('Enable Bloom', 'GRAPHICS_SETTINGS.enableBloom'));
-        this.graphicsSettingsContent.appendChild(createCheckbox('Enable Vignette', 'GRAPHICS_SETTINGS.enableVignette'));
-        this.graphicsSettingsContent.appendChild(createSlider('FPV FOV', 70, 140, 1, 'FPV_CAMERA_FOV'));
+        // Append to the correct containers
+        this.graphicsSettingsContent?.appendChild(this._createHeading('Graphics Settings'));
+        this.graphicsSettingsContent?.appendChild(createCheckbox('Enable Bloom', 'GRAPHICS_SETTINGS.enableBloom'));
+        this.graphicsSettingsContent?.appendChild(createCheckbox('Enable Vignette', 'GRAPHICS_SETTINGS.enableVignette'));
+        this.graphicsSettingsContent?.appendChild(createSlider('FPV FOV', 70, 140, 1, 'FPV_CAMERA_FOV'));
 
+        this.flySettingsContent?.appendChild(this._createHeading('Fly Settings'));
+        this.flySettingsContent?.appendChild(createSlider('FPV Camera Angle (°)', -20, 60, 1, 'FPV_CAMERA_ANGLE_DEG'));
 
-        // Fly Settings <<< ADD CAMERA ANGLE SLIDER HERE >>>
-        this.flySettingsContent.appendChild(createSlider('FPV Camera Angle (°)', -20, 60, 1, 'FPV_CAMERA_ANGLE_DEG'));
+        this.fcSettingsContent?.appendChild(this._createHeading('Flight Controller Settings'));
+        this.fcSettingsContent?.appendChild(createSlider('Roll Rate P', 0, 2.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.kp'));
+        this.fcSettingsContent?.appendChild(createSlider('Roll Rate I', 0, 1.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.ki'));
+        this.fcSettingsContent?.appendChild(createSlider('Roll Rate D', 0, 0.2, 0.002, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.kd'));
+        this.fcSettingsContent?.appendChild(createSlider('Pitch Rate P', 0, 2.0, 0.02, 'FLIGHT_CONTROLLER_SETTINGS.PID.pitch.kp'));
+        this.fcSettingsContent?.appendChild(createSlider('Pitch Rate I', 0, 1.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.pitch.ki'));
+        this.fcSettingsContent?.appendChild(createSlider('Pitch Rate D', 0, 0.2, 0.002, 'FLIGHT_CONTROLLER_SETTINGS.PID.pitch.kd'));
+        this.fcSettingsContent?.appendChild(createSlider('Yaw Rate P', 0, 3.0, 0.05, 'FLIGHT_CONTROLLER_SETTINGS.PID.yaw.kp'));
+        this.fcSettingsContent?.appendChild(createSlider('Yaw Rate I', 0, 1.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.yaw.ki'));
+        this.fcSettingsContent?.appendChild(createSlider('Yaw Rate D', 0, 0.1, 0.002, 'FLIGHT_CONTROLLER_SETTINGS.PID.yaw.kd'));
+        this.fcSettingsContent?.appendChild(createSlider('PID I-Limit', 0, 1.0, 0.02, 'FLIGHT_CONTROLLER_SETTINGS.PID.iLimit'));
+        this.fcSettingsContent?.appendChild(createSlider('Max Roll/Pitch Rate (°/s)', 100, 1500, 10, 'FLIGHT_CONTROLLER_SETTINGS.RATE_LIMITS.roll'));
+        this.fcSettingsContent?.appendChild(createSlider('Max Yaw Rate (°/s)', 100, 1000, 10, 'FLIGHT_CONTROLLER_SETTINGS.RATE_LIMITS.yaw'));
 
-        // Flight Controller (Example PID tuning - might add more later)
-        this.fcSettingsContent.appendChild(createSlider('Roll Rate P', 0, 2.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.kp'));
-        this.fcSettingsContent.appendChild(createSlider('Roll Rate I', 0, 1.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.ki'));
-        this.fcSettingsContent.appendChild(createSlider('Roll Rate D', 0, 0.2, 0.002, 'FLIGHT_CONTROLLER_SETTINGS.PID.roll.kd'));
-        this.fcSettingsContent.appendChild(createSlider('Pitch Rate P', 0, 2.0, 0.02, 'FLIGHT_CONTROLLER_SETTINGS.PID.pitch.kp'));
-        this.fcSettingsContent.appendChild(createSlider('Pitch Rate I', 0, 1.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.pitch.ki'));
-        this.fcSettingsContent.appendChild(createSlider('Pitch Rate D', 0, 0.2, 0.002, 'FLIGHT_CONTROLLER_SETTINGS.PID.pitch.kd'));
-        this.fcSettingsContent.appendChild(createSlider('Yaw Rate P', 0, 3.0, 0.05, 'FLIGHT_CONTROLLER_SETTINGS.PID.yaw.kp'));
-        this.fcSettingsContent.appendChild(createSlider('Yaw Rate I', 0, 1.0, 0.01, 'FLIGHT_CONTROLLER_SETTINGS.PID.yaw.ki'));
-        this.fcSettingsContent.appendChild(createSlider('Yaw Rate D', 0, 0.1, 0.002, 'FLIGHT_CONTROLLER_SETTINGS.PID.yaw.kd'));
-        this.fcSettingsContent.appendChild(createSlider('PID I-Limit', 0, 1.0, 0.02, 'FLIGHT_CONTROLLER_SETTINGS.PID.iLimit'));
-        this.fcSettingsContent.appendChild(createSlider('Max Roll/Pitch Rate (°/s)', 100, 1500, 10, 'FLIGHT_CONTROLLER_SETTINGS.RATE_LIMITS.roll')); // Assuming Roll/Pitch rates are linked
-        this.fcSettingsContent.appendChild(createSlider('Max Yaw Rate (°/s)', 100, 1000, 10, 'FLIGHT_CONTROLLER_SETTINGS.RATE_LIMITS.yaw'));
+        this.physicsSettingsContent?.appendChild(this._createHeading('Physics Settings'));
+        this.physicsSettingsContent?.appendChild(createSlider('Drone Mass (kg)', 0.1, 2.0, 0.05, 'DRONE_MASS'));
+        this.physicsSettingsContent?.appendChild(createSlider('Linear Damping', 0, 1, 0.02, 'DRONE_PHYSICS_SETTINGS.linearDamping'));
+        this.physicsSettingsContent?.appendChild(createSlider('Angular Damping', 0, 1, 0.02, 'DRONE_PHYSICS_SETTINGS.angularDamping'));
 
+        this.gamepadSettingsContent?.appendChild(this._createHeading('Gamepad Settings'));
+        // Add status/visual placeholders back if cleared
+        const gamepadStatus = document.createElement('div');
+        gamepadStatus.id = 'gamepad-status';
+        gamepadStatus.textContent = 'Gamepad Status: Disconnected'; // Default
+        this.gamepadSettingsContent?.appendChild(gamepadStatus);
+        const gamepadVisual = document.createElement('div');
+        gamepadVisual.id = 'gamepad-visual';
+        this.gamepadSettingsContent?.appendChild(gamepadVisual);
+        // Add controls
+        this.gamepadSettingsContent?.appendChild(createSlider('Gamepad Deadzone', 0, 0.5, 0.01, 'GAMEPAD_DEADZONE'));
+        this.gamepadSettingsContent?.appendChild(createCheckbox('Invert Roll Axis', 'GAMEPAD_INVERT_AXES.roll'));
+        this.gamepadSettingsContent?.appendChild(createCheckbox('Invert Pitch Axis', 'GAMEPAD_INVERT_AXES.pitch'));
+        this.gamepadSettingsContent?.appendChild(createCheckbox('Invert Yaw Axis', 'GAMEPAD_INVERT_AXES.yaw'));
+        this.gamepadSettingsContent?.appendChild(createCheckbox('Invert Thrust Axis', 'GAMEPAD_INVERT_AXES.thrust'));
+        this.gamepadSettingsContent?.appendChild(createDisplayItem('Arm/Disarm Button', `Index ${config.GAMEPAD_BUTTON_MAPPING.armDisarm}`));
+        this.gamepadSettingsContent?.appendChild(createDisplayItem('Reset Button', `Index ${config.GAMEPAD_BUTTON_MAPPING.reset}`));
 
-        // Physics
-        this.physicsSettingsContent.appendChild(createSlider('Drone Mass (kg)', 0.1, 2.0, 0.05, 'DRONE_MASS'));
-        this.physicsSettingsContent.appendChild(createSlider('Linear Damping', 0, 1, 0.02, 'DRONE_PHYSICS_SETTINGS.linearDamping'));
-        this.physicsSettingsContent.appendChild(createSlider('Angular Damping', 0, 1, 0.02, 'DRONE_PHYSICS_SETTINGS.angularDamping'));
+        this.keyboardSettingsDisplay?.appendChild(this._createHeading('Keyboard Settings'));
+        this.keyboardSettingsDisplay?.appendChild(createSlider('Keyboard Roll Sens.', 0.1, 2.0, 0.05, 'KEYBOARD_SENSITIVITY.roll'));
+        this.keyboardSettingsDisplay?.appendChild(createSlider('Keyboard Pitch Sens.', 0.1, 2.0, 0.05, 'KEYBOARD_SENSITIVITY.pitch'));
+        this.keyboardSettingsDisplay?.appendChild(createSlider('Keyboard Yaw Sens.', 0.1, 2.0, 0.05, 'KEYBOARD_SENSITIVITY.yaw'));
+        this.keyboardSettingsDisplay?.appendChild(createDisplayItem('Pitch Keys', 'W/S/Up/Down'));
+        this.keyboardSettingsDisplay?.appendChild(createDisplayItem('Roll Keys', 'A/D/Left/Right'));
+        this.keyboardSettingsDisplay?.appendChild(createDisplayItem('Yaw Keys', 'Q/E'));
+        this.keyboardSettingsDisplay?.appendChild(createDisplayItem('Thrust Keys', 'Shift/Ctrl/Space'));
+        this.keyboardSettingsDisplay?.appendChild(createDisplayItem('Arm/Disarm Key', 'Enter'));
+        this.keyboardSettingsDisplay?.appendChild(createDisplayItem('Reset Key', 'R'));
 
-        // Gamepad Controls
-        this.gamepadSettingsContent.appendChild(createSlider('Gamepad Deadzone', 0, 0.5, 0.01, 'GAMEPAD_DEADZONE'));
-        this.gamepadSettingsContent.appendChild(createCheckbox('Invert Roll Axis', 'GAMEPAD_INVERT_AXES.roll'));
-        this.gamepadSettingsContent.appendChild(createCheckbox('Invert Pitch Axis', 'GAMEPAD_INVERT_AXES.pitch'));
-        this.gamepadSettingsContent.appendChild(createCheckbox('Invert Yaw Axis', 'GAMEPAD_INVERT_AXES.yaw'));
-        this.gamepadSettingsContent.appendChild(createCheckbox('Invert Thrust Axis', 'GAMEPAD_INVERT_AXES.thrust'));
-        this.gamepadSettingsContent.appendChild(createDisplayItem('Arm/Disarm Button', `Index ${config.GAMEPAD_BUTTON_MAPPING.armDisarm}`));
-        this.gamepadSettingsContent.appendChild(createDisplayItem('Reset Button', `Index ${config.GAMEPAD_BUTTON_MAPPING.reset}`));
-
-        // Keyboard Controls Display
-        this.keyboardSettingsDisplay.appendChild(createSlider('Keyboard Roll Sens.', 0.1, 2.0, 0.05, 'KEYBOARD_SENSITIVITY.roll'));
-        this.keyboardSettingsDisplay.appendChild(createSlider('Keyboard Pitch Sens.', 0.1, 2.0, 0.05, 'KEYBOARD_SENSITIVITY.pitch'));
-        this.keyboardSettingsDisplay.appendChild(createSlider('Keyboard Yaw Sens.', 0.1, 2.0, 0.05, 'KEYBOARD_SENSITIVITY.yaw'));
-        this.keyboardSettingsDisplay.appendChild(createDisplayItem('Pitch Keys', 'W/S/Up/Down'));
-        this.keyboardSettingsDisplay.appendChild(createDisplayItem('Roll Keys', 'A/D/Left/Right'));
-        this.keyboardSettingsDisplay.appendChild(createDisplayItem('Yaw Keys', 'Q/E'));
-        this.keyboardSettingsDisplay.appendChild(createDisplayItem('Thrust Keys', 'Shift/Ctrl/Space'));
-        this.keyboardSettingsDisplay.appendChild(createDisplayItem('Arm/Disarm Key', 'Enter'));
-        this.keyboardSettingsDisplay.appendChild(createDisplayItem('Reset Key', 'R'));
-
-        console.log("MenuManager: Settings panels populated.");
+        console.log("MenuManager: Settings panels populated into new structure.");
+    }
+    // Helper to create H4 element
+    _createHeading(text) {
+        const heading = document.createElement('h4');
+        heading.textContent = text;
+        return heading;
     }
 
-    // --- Event Listeners Setup ---
+    // --- Event Listeners Setup (Updated for New Structure) ---
     _addEventListeners() {
         // Main Menu
         this.flyButton?.addEventListener('click', () => EventBus.emit(EVENTS.FLY_BUTTON_CLICKED));
 
-        // In-Sim Menu Buttons -> Emit events
+        // In-Sim Menu - Action Buttons
         this.resumeButton?.addEventListener('click', () => EventBus.emit(EVENTS.RESUME_BUTTON_CLICKED));
         this.restartButton?.addEventListener('click', () => EventBus.emit(EVENTS.RESTART_BUTTON_CLICKED));
         this.mainMenuButton?.addEventListener('click', () => EventBus.emit(EVENTS.RETURN_TO_MAIN_MENU_CLICKED));
-        this.settingsPanelButton?.addEventListener('click', () => this.showSettingsPanel(this.settingsPanel)); // Still direct UI manipulation within MenuManager
-        this.controlsPanelButton?.addEventListener('click', () => this.showSettingsPanel(this.controlsPanel)); // Still direct UI manipulation within MenuManager
-        this.applySaveButton?.addEventListener('click', () => {
-            EventBus.emit(EVENTS.APPLY_SETTINGS_CLICKED);
-            this.hideSettingsPanels(); // Hide panels after emitting event
+
+        // In-Sim Menu - Sidebar View Buttons
+        this.sidebarButtons?.forEach(button => {
+            button.addEventListener('click', this._handleSidebarClick.bind(this));
         });
-        this.backButtons.forEach(button => button.addEventListener('click', () => {
-            this.hideSettingsPanels();
-            EventBus.emit(EVENTS.BACK_BUTTON_CLICKED); // Emit back event if states need it
-        }));
+
+        // In-Sim Menu - Sub-Navigation Buttons
+        this.subNavButtons?.forEach(button => {
+            button.addEventListener('click', this._handleSubNavClick.bind(this));
+        });
 
         // Canvas Click for Pointer Lock Request
         this.canvasElement?.addEventListener('click', () => EventBus.emit(EVENTS.CANVAS_CLICKED));
 
-        console.log("MenuManager: Event listeners added.");
+        console.log("MenuManager: New event listeners added.");
+        // REMOVED Listeners for old buttons: settings-panel-button, controls-panel-button, apply-save-button, .back-button
     }
+
+    // --- NEW: View and Panel Switching Logic ---
+
+    _handleSidebarClick(event) {
+        const button = event.currentTarget;
+        const viewId = button.dataset.view; // Get target view ID from data-view
+
+        if (!viewId) return; // Should not happen for buttons with data-view
+
+        // Deactivate previously active button and view
+        this._deactivateAllSidebarButtons();
+        this._deactivateAllViews();
+
+        // Activate clicked button and corresponding view
+        button.classList.add('active');
+        const targetView = document.getElementById(viewId);
+        if (targetView) {
+            targetView.classList.add('active');
+            this.activeView = targetView; // Store active view
+
+            // Activate the default (first) sub-nav tab and panel within the newly activated view
+            const firstSubNavButton = targetView.querySelector('.sub-nav-button[data-panel]');
+            if (firstSubNavButton) {
+                this._activateSubNavButtonAndPanel(firstSubNavButton);
+            }
+
+        } else {
+            console.warn(`MenuManager: Target view with ID "${viewId}" not found.`);
+            this.activeView = null;
+        }
+    }
+
+    _handleSubNavClick(event) {
+        const button = event.currentTarget;
+        this._activateSubNavButtonAndPanel(button);
+    }
+
+    _activateSubNavButtonAndPanel(button) {
+        const panelId = button.dataset.panel;
+        if (!panelId || !this.activeView) return; // Need panelId and an active view
+
+        // Deactivate other sub-nav buttons and panels within the *current active view*
+        const currentSubNav = this.activeView.querySelector('.sub-nav');
+        currentSubNav?.querySelectorAll('.sub-nav-button').forEach(btn => btn.classList.remove('active'));
+        this.activeView.querySelectorAll('.panel-content').forEach(panel => panel.classList.remove('active'));
+
+        // Activate clicked button and corresponding panel
+        button.classList.add('active');
+        const targetPanel = document.getElementById(panelId); // Find panel by ID globally
+        if (targetPanel) {
+            targetPanel.classList.add('active');
+            // Store active panel for this view (optional, might not be needed)
+            this.activePanels[this.activeView.id] = panelId;
+        } else {
+            console.warn(`MenuManager: Target panel with ID "${panelId}" not found.`);
+        }
+    }
+
+    _deactivateAllSidebarButtons() {
+        this.sidebarButtons?.forEach(btn => btn.classList.remove('active'));
+    }
+
+    _deactivateAllViews() {
+        this.contentViews?.forEach(view => view.classList.remove('active'));
+    }
+
+    // --- NEW Method needed by PausedState ---
+    /** Returns true if a specific view (Settings or Controls) is active */
+    isViewActive() {
+        return this.activeView !== null;
+    }
+    /** Resets the menu to the default pause state (no view selected) */
+    resetToDefaultView() {
+        this._deactivateAllViews();
+        this._deactivateAllSidebarButtons();
+        this.activeView = null;
+    }
+
 
     // --- Cleanup ---
     dispose() {
-        // TODO: Remove event listeners if necessary, although usually handled by page unload
+        // TODO: Remove event listeners added in _addEventListeners
         console.log("MenuManager: Disposed (placeholder).");
     }
 }

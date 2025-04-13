@@ -5,307 +5,472 @@
     box-sizing: border-box;
 }
 
+/* --- NEW/MODIFIED --- */
+:root {
+    /* Sample Theme Colors */
+    --bg-primary: #0a0f18; /* Very dark blue */
+    --bg-secondary: #1a2030; /* Dark panel blue/grey */
+    --bg-tertiary: #2a3042; /* Slightly lighter panel */
+    --bg-primary-rgb: 10, 15, 24;   /* RGB for #0a0f18 */
+    --bg-secondary-rgb: 26, 32, 48; /* RGB for #1a2030 */
+    --bg-tertiary-rgb: 42, 48, 66;  /* RGB for #2a3042 */
+
+    --accent-primary: #4a90e2; /* Bright blue */
+    --accent-secondary: #50e3c2; /* Teal/Cyan */
+    --text-primary: #e1efff; /* Light blueish white */
+    --text-secondary: #b0c4de; /* Medium light steel blue */
+    --text-muted: #7a8aa0; /* Greyish blue */
+    --border-color: rgba(255, 255, 255, 0.1);
+    --success-color: #4CAF50; /* Green */
+    --danger-color: #f44336; /* Red */
+    --warning-color: #ff9800; /* Orange */
+
+
+    /* Fonts (Placeholders - Replace with @font-face later) */
+    --font-primary: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --font-monospace: 'Consolas', 'Monaco', monospace;
+
+    /* Transitions */
+    --transition-fast: 0.15s ease-out;
+    --transition-medium: 0.3s ease-out;
+}
+
 html, body {
-    overflow: hidden; /* Prevent scrollbars */
+    overflow: hidden;
     width: 100%;
     height: 100%;
-    font-family: sans-serif;
-    background-color: #333; /* Add a default background for behind menus */
+    font-family: var(--font-primary); /* Use variable */
+    background-color: var(--bg-primary); /* Use variable */
+    color: var(--text-primary); /* Use variable */
 }
 
-/* ========= NEW: Utility Class ========= */
+/* Utility Class */
 .hidden {
-    display: none !important; /* Use important to override potential defaults */
+    display: none !important;
 }
 
-/* ========= NEW: Overlay Styling ======== */
+/* --- Base Overlay Styling --- */
 .overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.75); /* Semi-transparent background */
+    top: 0; left: 0; width: 100%; height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 100; /* Ensure menus are on top */
-    color: white;
+    z-index: 100;
 }
 
-.menu-content {
+/* --- Main Menu Styling (Refined) --- */
+.main-menu-style {
+    /* Overlay style remains */
+}
+.main-menu-background {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    /* TODO: Replace with themed background */
+    background: linear-gradient(135deg, var(--bg-primary), var(--bg-secondary));
+    opacity: 0.9;
+    z-index: -1;
+}
+.main-menu-style .menu-content {
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 50px 70px;
+    border-radius: 10px;
     text-align: center;
-    background-color: rgba(50, 50, 50, 0.9);
-    padding: 40px 60px;
-    border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--border-color);
 }
-
-.menu-content h1 {
-    margin-bottom: 30px;
-    font-size: 2.5em;
-    color: #eee;
+.main-title {
+    font-size: 3.5em; /* Larger title */
+    color: var(--text-primary);
+    margin-bottom: 50px;
+    font-weight: 300; /* Lighter font weight */
+    letter-spacing: 1px;
+    text-shadow: 0 0 10px var(--accent-primary); /* Subtle glow */
 }
-
-.menu-content button {
-    display: block;
-    width: 100%;
-    padding: 15px 20px;
-    margin-bottom: 15px;
-    font-size: 1.2em;
-    background-color: #4CAF50; /* Green */
+.main-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 18px; /* More space */
+    width: 300px;
+    margin: 0 auto;
+}
+.nav-button {
+    padding: 16px 25px;
+    font-size: 1.1em;
+    background: linear-gradient(to right, var(--accent-primary), var(--accent-secondary));
     color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    transition: background-color 0.3s ease;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
 }
-
-.menu-content button:hover:not(:disabled) {
-    background-color: #45a049;
+.nav-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(var(--accent-primary), 0.3);
 }
-
-.menu-content button:disabled {
-    background-color: #555;
+.nav-button:active:not(:disabled) {
+    transform: translateY(0px);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.nav-button:disabled {
+    background: var(--bg-tertiary);
     cursor: not-allowed;
-    opacity: 0.6;
-}
-/* ====================================== */
-
-
-#webgl-canvas {
-    position: fixed;
-    top: 0;
-    left: 0;
-    outline: none;
-    display: block; /* display: block is fine, but hide/show with .hidden */
-    width: 100%;
-    height: 100%;
-    z-index: 1; /* Ensure canvas is behind OSD and menus */
+    opacity: 0.5;
+    box-shadow: none;
+    transform: none;
 }
 
-#osd {
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    color: white;
-    background-color: rgba(0, 0, 0, 0.3);
-    padding: 5px 10px;
-    border-radius: 3px;
-    font-size: 14px;
-    pointer-events: none;
-    text-shadow: 1px 1px 2px black;
-    z-index: 10; /* Ensure OSD is above canvas but below menus */
-}
-
-
-/* Styling for panels within the in-sim menu */
-.panel {
-    margin-top: 20px;
-    padding: 20px;
-    background-color: rgba(70, 70, 70, 0.9); /* Slightly different background */
+/* --- Loading Indicator Styling (Minimal Change) --- */
+#loading-indicator .menu-content {
+    background-color: rgba(var(--bg-secondary), 0.95);
+    padding: 40px;
     border-radius: 5px;
-    border: 1px solid #555;
-    text-align: left; /* Align panel content left */
+    color: var(--text-secondary);
 }
 
-.panel h3 {
-    margin-bottom: 15px;
-    text-align: center; /* Center panel titles */
-    color: #ddd;
+/* --- REWORKED: In-Sim Menu Structure (Refined) --- */
+.in-sim-menu-style {
+    background-color: transparent;
+    padding: 5vh 5vw;
+    align-items: stretch;
+    justify-content: center;
 }
 
-.panel .back-button {
-    margin-top: 20px;
-    background-color: #777; /* Grey back button */
-    float: right; /* Position back button */
-    width: auto; /* Auto width for back button */
-    padding: 8px 15px;
+.menu-backdrop {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(var(--bg-primary), 0.5);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    z-index: -1;
+    transition: backdrop-filter var(--transition-medium), background-color var(--transition-medium);
 }
 
-.panel .back-button:hover {
-    background-color: #666;
+.menu-container {
+    display: flex;
+    /* --- MODIFIED background-color --- */
+    /* Was: background-color: rgba(var(--bg-secondary), 0.92); */
+    background-color: rgba(var(--bg-secondary-rgb), 0.97); /* Using RGB + higher alpha */
+    /* Or try fully opaque: background-color: var(--bg-secondary); */
+    /* --- End modification --- */
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    width: 85vw;
+    height: 80vh;
+    max-width: 1300px;
+    max-height: 850px;
+    border: 1px solid var(--border-color);
 }
 
-/* Style for Apply/Save Button */
-#apply-save-button {
-    margin-top: 20px;
-    background-color: #f0ad4e; /* Orange */
-}
-#apply-save-button:hover {
-    background-color: #ec971f;
-}
-
-
-/* Ensure panel content doesn't overflow menu width */
-#in-sim-menu .menu-content {
-    max-width: 500px; /* Limit width */
-    max-height: 90vh; /* Limit height */
-    overflow-y: auto; /* Add scroll if content exceeds height */
+/* Sidebar (Refined) */
+.menu-sidebar {
+    flex: 0 0 230px; /* Slightly wider */
+    background-color: rgba(var(--bg-primary), 0.9); /* Darker base */
+    padding: 25px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-right: 1px solid var(--border-color);
 }
 
-/* Styling for panels within the in-sim menu */
-.panel {
-    margin-top: 20px;
-    padding: 20px;
-    background-color: rgba(70, 70, 70, 0.9);
-    border-radius: 5px;
-    border: 1px solid #555;
+.sidebar-button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 12px 20px;
     text-align: left;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+    font-size: 1.0em;
+    width: 100%;
+    display: flex; /* For icon alignment */
+    align-items: center;
+    gap: 10px; /* Space between icon and text */
 }
-
-.panel h3 {
-    margin-bottom: 20px; /* Increased margin */
+/* --- NEW/MODIFIED --- Placeholder Icons */
+.sidebar-button::before {
+    content: '■'; /* Placeholder icon */
+    font-family: var(--font-monospace);
+    display: inline-block;
+    width: 1.2em;
     text-align: center;
-    color: #ddd;
+    opacity: 0.6;
+    transition: opacity var(--transition-fast);
+}
+.sidebar-button:hover {
+    background-color: rgba(var(--accent-primary), 0.15);
+    color: var(--text-primary);
+}
+.sidebar-button:hover::before {
+    opacity: 1;
+}
+.sidebar-button.active {
+    background-color: rgba(var(--accent-primary), 0.3);
+    color: var(--text-primary);
+    font-weight: 500;
+}
+.sidebar-button.active::before {
+    opacity: 1;
+    color: var(--accent-primary);
+}
+/* Specific action buttons */
+#resume-button, #restart-button, #main-menu-button {
+    margin-top: auto;
+}
+#resume-button { margin-top: 20px; background-color: rgba(var(--success-color), 0.3); color: #dfffe0; }
+#resume-button:hover { background-color: rgba(var(--success-color), 0.5); color: #fff;}
+#resume-button::before { content: '▶'; } /* Play icon */
+#restart-button::before { content: '↺'; } /* Restart icon */
+#settings-button::before { content: '⚙'; } /* Settings icon */
+#controls-button::before { content: '🎮'; } /* Controller icon */
+#main-menu-button { background-color: rgba(var(--danger-color), 0.2); color: #ffdddd; }
+#main-menu-button:hover { background-color: rgba(var(--danger-color), 0.4); color: #fff;}
+#main-menu-button::before { content: 'ᐊ'; } /* Back icon */
+
+
+/* Content Area (Refined) */
+.menu-content-area {
+    flex-grow: 1;
+    padding: 25px 40px; /* Increased padding */
+    overflow-y: auto;
+    position: relative;
+}
+/* Custom Scrollbar */
+.menu-content-area::-webkit-scrollbar {
+    width: 8px;
+}
+.menu-content-area::-webkit-scrollbar-track {
+    background: rgba(var(--bg-primary), 0.5);
+    border-radius: 4px;
+}
+.menu-content-area::-webkit-scrollbar-thumb {
+    background-color: var(--text-muted);
+    border-radius: 4px;
+    border: 2px solid transparent; /* Padding */
+    background-clip: content-box;
+}
+.menu-content-area::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-secondary);
 }
 
-.panel h4 {
-    margin-top: 15px;
-    margin-bottom: 10px;
-    color: #bbb;
-    border-bottom: 1px solid #666;
-    padding-bottom: 5px;
+
+/* Content Views (Settings, Controls) */
+.content-view { display: none; animation: fadeIn 0.2s ease-out forwards; }
+.content-view.active { display: block; }
+.content-view h2 {
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 15px;
+    color: var(--text-primary);
+    font-size: 1.8em; /* Slightly larger */
+    font-weight: 400;
 }
 
-/* Styling for individual setting rows */
+/* Sub-Navigation Tabs (Refined) */
+.sub-nav {
+    display: flex;
+    gap: 8px; /* More gap */
+    margin-bottom: 30px; /* More space below */
+    border-bottom: 1px solid var(--border-color);
+}
+.sub-nav-button {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--text-muted);
+    padding: 10px 20px; /* More padding */
+    cursor: pointer;
+    transition: color var(--transition-fast), border-color var(--transition-fast);
+    font-size: 1.0em; /* Slightly larger */
+    margin-bottom: -1px;
+    font-weight: 500;
+}
+.sub-nav-button:hover {
+    color: var(--text-primary);
+}
+.sub-nav-button.active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
+}
+
+/* Panel Content */
+.panel-content { display: none; padding-top: 10px; animation: fadeIn 0.2s ease-out forwards; }
+.panel-content.active { display: block; }
+.panel-content h4 {
+    margin-top: 20px; /* More spacing */
+    margin-bottom: 18px;
+    color: var(--text-secondary); /* Use theme color */
+    padding-bottom: 8px;
+    font-size: 1.15em;
+    font-weight: 500;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.1); /* Dashed divider */
+}
+.panel-content:first-of-type h4 { margin-top: 0; }
+
+/* Gamepad Status/Visual Placeholders */
+#gamepad-status {
+    margin-bottom: 15px; padding: 10px 15px;
+    background-color: rgba(var(--bg-primary), 0.4);
+    border-radius: 4px; font-size: 0.9em; color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+#gamepad-visual {
+    min-height: 150px;
+    background-color: rgba(var(--bg-primary), 0.2);
+    border-radius: 4px; margin-bottom: 20px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-style: italic;
+    border: 1px dashed var(--border-color);
+}
+#gamepad-visual::before { content: "(Gamepad Diagram Placeholder)"; }
+
+/* --- WebGL Canvas & OSD (Refined) --- */
+#webgl-canvas {
+    position: fixed; top: 0; left: 0; outline: none;
+    display: block; width: 100%; height: 100%; z-index: 1;
+}
+#osd {
+    position: fixed; top: 15px; left: 15px;
+    color: var(--text-primary);
+    background-color: rgba(var(--bg-primary), 0.6); /* Darker, theme-based */
+    padding: 8px 12px; border-radius: 4px;
+    font-size: 14px; font-family: var(--font-monospace);
+    pointer-events: none;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+    z-index: 10;
+    border: 1px solid rgba(255, 255, 255, 0.1); /* Subtle border */
+}
+#osd p { margin-bottom: 4px; }
+#osd strong#osd-armed[style*="lightgreen"] { color: var(--accent-secondary); } /* Themed armed color */
+#osd strong#osd-armed[style*="orange"] { color: var(--warning-color); } /* Themed disarmed color */
+#osd span { color: #fff; } /* Brighter values */
+
+/* --- Settings Item Styling (Adjusted for new controls) --- */
 .setting-item {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    padding: 5px 0;
+    align-items: center; /* Center vertically */
+    margin-bottom: 10px; /* Reduced margin */
+    padding: 10px 5px; /* Increased padding */
+    border-bottom: 1px solid var(--border-color);
+    min-height: 40px; /* Ensure consistent height */
 }
-
+.setting-item:last-child { border-bottom: none; }
 .setting-item label {
-    flex-basis: 40%; /* Adjust as needed */
-    margin-right: 10px;
-    color: #ccc;
-    font-size: 0.95em;
+    flex: 1 1 40%; /* Allow label to shrink/grow */
+    margin-right: 15px;
+    color: var(--text-secondary);
+    font-size: 0.95em; /* Larger label */
+    line-height: 1.3;
 }
-
 .setting-item .control-container {
-    flex-basis: 60%; /* Adjust as needed */
+    flex: 1 1 55%; /* Allow control to shrink/grow */
     display: flex;
     align-items: center;
+    gap: 15px; /* Space between slider and value */
+}
+.setting-item .value-display { /* Now applies to both sliders and readouts */
+    min-width: 55px; /* Wider display */
+    text-align: right;
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 0.95em;
+    font-family: var(--font-monospace); /* Monospace for numbers */
 }
 
-/* Style sliders */
+/* --- NEW/MODIFIED --- Custom Slider Styles --- */
 .setting-item input[type="range"] {
-    flex-grow: 1;
-    margin-right: 10px;
-    cursor: pointer;
-}
-
-/* Style number inputs */
-.setting-item input[type="number"] {
-    width: 70px; /* Adjust width */
-    padding: 4px 6px;
-    background-color: #444;
-    border: 1px solid #666;
-    color: white;
-    border-radius: 3px;
-    text-align: right;
-}
-/* Hide spinner arrows on number inputs (optional) */
-.setting-item input[type="number"]::-webkit-outer-spin-button,
-.setting-item input[type="number"]::-webkit-inner-spin-button {
+    flex-grow: 1; /* Take available space */
+    appearance: none; /* Override default look */
     -webkit-appearance: none;
-    margin: 0;
-}
-.setting-item input[type="number"] {
-    -moz-appearance: textfield; /* Firefox */
-}
-
-
-/* Style checkboxes */
-.setting-item input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
+    width: 100%; /* Ensure it fills container space */
+    height: 6px; /* Track height */
+    background: var(--bg-tertiary); /* Track background */
+    border-radius: 3px;
     cursor: pointer;
-    margin-left: auto; /* Push checkbox to the right within its container */
+    margin: 0; /* Remove default margins */
+    padding: 0; /* Remove default padding */
+    outline: none;
 }
-
-/* Style value display spans */
-.setting-item .value-display {
-    min-width: 40px; /* Ensure space for value */
-    text-align: right;
-    font-weight: bold;
-    color: #eee;
-    font-size: 0.9em;
+/* Slider Thumb */
+.setting-item input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px; /* Thumb size */
+    height: 16px;
+    background: var(--accent-primary); /* Thumb color */
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg-secondary); /* Border around thumb */
+    transition: background-color var(--transition-fast);
 }
-
-
-.panel .back-button {
-    margin-top: 20px;
-    background-color: #777;
-    float: right;
-    width: auto;
-    padding: 8px 15px;
+.setting-item input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg-secondary);
+    transition: background-color var(--transition-fast);
 }
-.panel .back-button:hover {
-    background-color: #666;
+.setting-item input[type="range"]:hover::-webkit-slider-thumb { background: var(--accent-secondary); }
+.setting-item input[type="range"]:hover::-moz-range-thumb { background: var(--accent-secondary); }
+/* --- END Custom Slider Styles --- */
+
+
+/* --- NEW/MODIFIED --- Custom Checkbox (Toggle Switch) Styles --- */
+.setting-item input[type="checkbox"] {
+    appearance: none; /* Hide default */
+    -webkit-appearance: none;
+    position: relative;
+    width: 40px; /* Toggle width */
+    height: 22px; /* Toggle height */
+    background-color: var(--bg-tertiary);
+    border-radius: 11px; /* Fully rounded */
+    cursor: pointer;
+    outline: none;
+    transition: background-color var(--transition-fast);
+    margin-left: auto; /* Push to the right */
 }
-
-/* Apply/Save Button */
-#apply-save-button {
-    margin-top: 25px; /* Increased margin */
-    background-color: #f0ad4e;
-    width: calc(100% - 120px); /* Adjust width considering Back button */
-    float: left;
-    margin-right: 10px;
+/* Toggle Switch Circle */
+.setting-item input[type="checkbox"]::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px; /* Circle size */
+    height: 18px;
+    background-color: var(--text-secondary);
+    border-radius: 50%;
+    transition: transform var(--transition-fast), background-color var(--transition-fast);
 }
-#apply-save-button:hover {
-    background-color: #ec971f;
+/* Checked State */
+.setting-item input[type="checkbox"]:checked {
+    background-color: var(--success-color); /* Use theme green */
 }
-
-
-/* Ensure panel content doesn't overflow menu width */
-#in-sim-menu .menu-content {
-    max-width: 550px; /* Adjust width if needed */
-    max-height: 90vh;
-    overflow-y: auto;
+.setting-item input[type="checkbox"]:checked::before {
+    transform: translateX(18px); /* Move circle to the right */
+    background-color: white; /* White circle when checked */
 }
+/* --- END Custom Checkbox Styles --- */
 
-/* Clear floats for buttons at the bottom */
-#settings-panel::after, #controls-panel::after {
-    content: "";
-    display: table;
-    clear: both;
-}
+/* Hide Number Input (now using sliders mainly) */
+.setting-item input[type="number"] { display: none; } /* Hide number input */
 
-/* NEW: Hide main pause buttons when a panel is active */
-#pause-main-options.hidden {
-    display: none;
-}
-
-
-/* NEW: Fade Overlay Styling */
+/* --- Fade Overlay (Keep existing) --- */
 #fade-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: black;
-    opacity: 0; /* Start fully transparent */
-    pointer-events: none; /* Don't block clicks when invisible */
-    z-index: 200; /* Above menus and canvas, below potential future UI popups? */
-    transition: opacity 0.3s ease-in-out; /* Smooth fade */
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: black; opacity: 0; pointer-events: none; z-index: 200;
+    transition: opacity 0.3s ease-in-out;
 }
+#fade-overlay.visible { opacity: 1; }
+#fade-overlay.hidden { display: block; opacity: 0; pointer-events: none; }
 
-#fade-overlay.visible {
-    opacity: 1;
-}
-
-/* Ensure hidden class still works */
-#fade-overlay.hidden {
-    display: block; /* Keep display block during fade */
-    opacity: 0;
-    pointer-events: none;
-}
-
-/* Utility Class (ensure important is used if needed) */
-.hidden {
-    display: none !important;
-}
+/* --- Animations --- */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
