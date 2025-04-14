@@ -1,6 +1,7 @@
 // src/InputManager.js
 import { getCurrentConfig } from '../config/ConfigManager.js';
 import EventBus, { EVENTS } from '../utils/EventBus.js';
+import MenuManager from "../ui/MenuManager.js";
 
 class InputManager {
     constructor() { // REMOVED engine parameter

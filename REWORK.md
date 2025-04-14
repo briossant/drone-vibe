@@ -2,8 +2,10 @@
 - button mapping menu
 - main menu design rework
 - arming when throttle at 0
+- rework/audit drone pid calculation
 - better map: real props, realistic terrain generation, better frames
 - better drone model (with spinning propellers)
-- race mode
+- add races
+- add leaderboards for races
 - multiple drone presets
 - audio
